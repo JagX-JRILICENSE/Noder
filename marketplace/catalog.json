@@ -1,0 +1,46 @@
+{
+  "version": 1,
+  "updated": "2026-09-08",
+  "extensions": [
+    {
+      "id": "hello-noder",
+      "name": "Hello Noder",
+      "version": "0.2.0",
+      "publisher": "JagX-JRILICENSE",
+      "description": "Sample extension with commands and status bar contribution.",
+      "categories": ["Other"],
+      "install": "bundled",
+      "featured": true
+    },
+    {
+      "id": "noder-theme-dark-plus",
+      "name": "Dark+ Theme",
+      "version": "0.1.0",
+      "publisher": "JagX-JRILICENSE",
+      "description": "Placeholder theme extension (coming soon).",
+      "categories": ["Themes"],
+      "install": "coming-soon",
+      "featured": false
+    },
+    {
+      "id": "noder-git-lens-lite",
+      "name": "Git Lens Lite",
+      "version": "0.1.0",
+      "publisher": "JagX-JRILICENSE",
+      "description": "Enhanced blame and history UI (planned).",
+      "categories": ["SCM"],
+      "install": "coming-soon",
+      "featured": true
+    },
+    {
+      "id": "noder-prettier",
+      "name": "Prettier Formatter",
+      "version": "0.1.0",
+      "publisher": "community",
+      "description": "Format on save via Prettier (planned).",
+      "categories": ["Formatters"],
+      "install": "coming-soon",
+      "featured": false
+    }
+  ]
+}
