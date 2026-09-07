@@ -1,6 +1,6 @@
 {
   "name": "noder",
-  "version": "0.5.0",
+  "version": "0.5.1",
   "description": "Noder - Real-time collaborative code editor and app builder by JagX and JRILICENSE",
   "main": "dist-electron/main.js",
   "author": "JagX & JRILICENSE",
@@ -8,7 +8,7 @@
   "private": true,
   "scripts": {
     "dev": "vite",
-    "build": "vite build && electron-builder",
+    "build": "vite build && electron-builder --publish never",
     "build:win": "vite build && electron-builder --win --publish never",
     "build:mac": "vite build && electron-builder --mac --publish never",
     "build:linux": "vite build && electron-builder --linux --publish never",
@@ -17,7 +17,7 @@
     "preview": "vite preview",
     "electron:dev": "concurrently -k \"vite\" \"wait-on http://localhost:5173 && electron .\"",
     "collab:server": "node collab-server/server.js",
-    "postinstall": "electron-builder install-app-deps || true",
+    "postinstall": "node -e \"try{require('child_process').execSync('electron-builder install-app-deps',{stdio:'inherit'})}catch(e){console.warn('[noder] native rebuild skipped (optional)')}\"",
     "rebuild": "electron-rebuild -f -w node-pty"
   },
   "dependencies": {
@@ -25,7 +25,6 @@
     "electron-updater": "^6.3.9",
     "lucide-react": "^0.460.0",
     "monaco-editor": "^0.52.0",
-    "node-pty": "^1.0.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "simple-git": "^3.27.0",
@@ -37,6 +36,9 @@
     "y-monaco": "^0.1.5",
     "y-websocket": "^2.0.4",
     "yjs": "^13.6.18"
+  },
+  "optionalDependencies": {
+    "node-pty": "^1.0.0"
   },
   "devDependencies": {
     "@types/react": "^18.3.12",
@@ -58,6 +60,9 @@
     "appId": "com.jagx.noder",
     "productName": "Noder",
     "copyright": "Copyright © 2026 JagX & JRILICENSE",
+    "npmRebuild": false,
+    "nodeGypRebuild": false,
+    "buildDependenciesFromSource": false,
     "directories": {
       "output": "release",
       "buildResources": "assets"
@@ -73,7 +78,7 @@
       "main": "dist-electron/main.js"
     },
     "asarUnpack": [
-      "node_modules/node-pty/**/*"
+      "**/node_modules/node-pty/**/*"
     ],
     "publish": [
       {
@@ -87,7 +92,6 @@
         { "target": "nsis", "arch": ["x64"] },
         { "target": "portable", "arch": ["x64"] }
       ],
-      "icon": "assets/icon.ico",
       "publisherName": "JagX & JRILICENSE",
       "artifactName": "${productName}-${version}-win-${arch}.${ext}",
       "signAndEditExecutable": false
@@ -97,7 +101,6 @@
         { "target": "dmg", "arch": ["x64", "arm64"] },
         { "target": "zip", "arch": ["x64", "arm64"] }
       ],
-      "icon": "assets/icon.icns",
       "category": "public.app-category.developer-tools",
       "artifactName": "${productName}-${version}-mac-${arch}.${ext}",
       "hardenedRuntime": false,
@@ -108,7 +111,6 @@
         { "target": "AppImage", "arch": ["x64"] },
         { "target": "deb", "arch": ["x64"] }
       ],
-      "icon": "assets/logo.svg",
       "category": "Development",
       "artifactName": "${productName}-${version}-linux-${arch}.${ext}"
     },
