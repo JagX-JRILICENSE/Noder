@@ -19,10 +19,12 @@ import {
 import FileExplorer from './components/FileExplorer'
 import Terminal from './components/Terminal'
 import LivePreview from './components/LivePreview'
+import GitHubPanel from './components/GitHubPanel'
 import type { OpenTab } from './types'
 import './App.css'
 
-const COLLAB_SERVER = 'wss://demos.yjs.dev' // Public demo server for real-time collab
+// Default public server; override with custom local server via Settings
+const DEFAULT_COLLAB = 'wss://demos.yjs.dev'
 
 function detectLanguage(filename: string): string {
   const ext = filename.split('.').pop()?.toLowerCase() || ''
@@ -43,11 +45,16 @@ export default function App() {
   const [activeTabId, setActiveTabId] = useState<string | null>(null)
   const [showTerminal, setShowTerminal] = useState(false)
   const [showPreview, setShowPreview] = useState(false)
+  const [showGhPanel, setShowGhPanel] = useState(false)
   const [collabEnabled, setCollabEnabled] = useState(false)
   const [collabRoom, setCollabRoom] = useState('noder-room-' + Math.random().toString(36).slice(2, 8))
+  const [collabServer, setCollabServer] = useState(
+    localStorage.getItem('noder-collab-server') || DEFAULT_COLLAB
+  )
   const [githubToken, setGithubToken] = useState<string | null>(localStorage.getItem('noder-gh-token'))
   const [githubUser, setGithubUser] = useState<string | null>(localStorage.getItem('noder-gh-user'))
   const [showGhModal, setShowGhModal] = useState(false)
+  const [showSettings, setShowSettings] = useState(false)
   const [statusMsg, setStatusMsg] = useState('Ready')
 
   const editorRef = useRef<editor.IStandaloneCodeEditor | null>(null)
@@ -57,7 +64,6 @@ export default function App() {
 
   const activeTab = tabs.find((t) => t.id === activeTabId) || null
 
-  // Listen for open folder from FileExplorer or menu
   useEffect(() => {
     const handler = (e: Event) => {
       const folder = (e as CustomEvent).detail as string
@@ -74,14 +80,13 @@ export default function App() {
           setStatusMsg(`Opened: ${folder}`)
         }
       })
+      window.electronAPI.onMenuNewTerminal?.(() => setShowTerminal(true))
     }
 
     return () => window.removeEventListener('noder-open-folder', handler)
   }, [])
 
-  // Open a file into a tab
   const openFile = useCallback(async (path: string, name: string) => {
-    // Already open?
     const existing = tabs.find((t) => t.path === path)
     if (existing) {
       setActiveTabId(existing.id)
@@ -107,7 +112,6 @@ export default function App() {
     setStatusMsg(`Opened ${name}`)
   }, [tabs])
 
-  // Save current tab
   const saveCurrent = useCallback(async () => {
     if (!activeTab || !window.electronAPI) return
     const ok = await window.electronAPI.writeFile(activeTab.path, activeTab.content)
@@ -121,7 +125,6 @@ export default function App() {
     }
   }, [activeTab])
 
-  // Close tab
   const closeTab = (id: string) => {
     setTabs((prev) => prev.filter((t) => t.id !== id))
     if (activeTabId === id) {
@@ -130,7 +133,6 @@ export default function App() {
     }
   }
 
-  // Update content of active tab
   const updateContent = (value: string | undefined) => {
     if (!activeTabId || value === undefined) return
     setTabs((prev) =>
@@ -140,10 +142,8 @@ export default function App() {
     )
   }
 
-  // Real-time collaboration setup
   const toggleCollab = () => {
     if (collabEnabled) {
-      // Disconnect
       bindingRef.current?.destroy()
       providerRef.current?.destroy()
       ydocRef.current?.destroy()
@@ -161,7 +161,7 @@ export default function App() {
       const ytext = ydoc.getText('monaco')
       ytext.insert(0, activeTab.content)
 
-      const provider = new WebsocketProvider(COLLAB_SERVER, collabRoom, ydoc)
+      const provider = new WebsocketProvider(collabServer, collabRoom, ydoc)
       const binding = new MonacoBinding(
         ytext,
         editorRef.current.getModel()!,
@@ -173,16 +173,14 @@ export default function App() {
       providerRef.current = provider
       bindingRef.current = binding
       setCollabEnabled(true)
-      setStatusMsg(`Collab connected — room: ${collabRoom}`)
+      setStatusMsg(`Collab connected — ${collabServer} / ${collabRoom}`)
     }
   }
 
-  // Editor mount
-  const handleEditorMount: OnMount = (editor) => {
-    editorRef.current = editor
+  const handleEditorMount: OnMount = (ed) => {
+    editorRef.current = ed
   }
 
-  // GitHub login (personal access token for simplicity)
   const connectGitHub = async (token: string) => {
     try {
       const res = await fetch('https://api.github.com/user', {
@@ -206,10 +204,10 @@ export default function App() {
     setGithubUser(null)
     localStorage.removeItem('noder-gh-token')
     localStorage.removeItem('noder-gh-user')
+    setShowGhPanel(false)
     setStatusMsg('GitHub disconnected')
   }
 
-  // Keyboard shortcuts
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.key === 's') {
@@ -227,7 +225,6 @@ export default function App() {
 
   return (
     <div className="app">
-      {/* Title bar */}
       <header className="titlebar">
         <div className="logo">Noder</div>
         <div className="menu">
@@ -243,7 +240,7 @@ export default function App() {
           <span>Edit</span>
           <span>View</span>
           <span onClick={() => setShowTerminal(v => !v)}>Terminal</span>
-          <span>Help</span>
+          <span onClick={() => setShowSettings(true)}>Help</span>
         </div>
 
         <div className="titlebar-actions">
@@ -276,9 +273,20 @@ export default function App() {
           >
             <Save size={16} />
           </button>
+          <button
+            className="icon-btn"
+            title="Settings / Collab server"
+            onClick={() => setShowSettings(true)}
+          >
+            <Settings size={16} />
+          </button>
 
           {githubUser ? (
-            <button className="gh-btn connected" onClick={disconnectGitHub} title={`@${githubUser}`}>
+            <button
+              className="gh-btn connected"
+              onClick={() => setShowGhPanel(v => !v)}
+              title={`@${githubUser} — click to open panel`}
+            >
               <Github size={16} />
               <span>@{githubUser}</span>
             </button>
@@ -292,7 +300,6 @@ export default function App() {
       </header>
 
       <div className="main">
-        {/* Sidebar - File Explorer */}
         <aside className="sidebar">
           <FileExplorer
             workspace={workspace}
@@ -301,10 +308,8 @@ export default function App() {
           />
         </aside>
 
-        {/* Editor + Preview area */}
         <div className="center">
           <div className="editor-area">
-            {/* Tabs */}
             <div className="tabs">
               {tabs.map((tab) => (
                 <div
@@ -325,7 +330,6 @@ export default function App() {
               ))}
             </div>
 
-            {/* Monaco Editor */}
             <div className="editor-wrapper">
               {activeTab ? (
                 <Editor
@@ -369,19 +373,23 @@ export default function App() {
             </div>
           </div>
 
-          {/* Live Preview */}
           <LivePreview
             content={activeTab?.content || ''}
             language={activeTab?.language || 'plaintext'}
             visible={showPreview}
           />
+
+          <GitHubPanel
+            token={githubToken}
+            user={githubUser}
+            visible={showGhPanel}
+            onClose={() => setShowGhPanel(false)}
+          />
         </div>
       </div>
 
-      {/* Terminal */}
-      <Terminal visible={showTerminal} />
+      <Terminal visible={showTerminal} cwd={workspace} />
 
-      {/* Status bar */}
       <footer className="statusbar">
         <span className="status-left">{statusMsg}</span>
         {collabEnabled && <span className="collab-badge">● LIVE · {collabRoom}</span>}
@@ -391,10 +399,9 @@ export default function App() {
             <span>UTF-8</span>
           </>
         )}
-        <span className="right">Noder v0.2.0 · JagX & JRILICENSE</span>
+        <span className="right">Noder v0.3.0 · JagX & JRILICENSE</span>
       </footer>
 
-      {/* GitHub Token Modal */}
       {showGhModal && (
         <div className="modal-overlay" onClick={() => setShowGhModal(false)}>
           <div className="modal" onClick={(e) => e.stopPropagation()}>
@@ -407,12 +414,7 @@ export default function App() {
                 window.electronAPI?.openExternal('https://github.com/settings/tokens')
               }}>github.com/settings/tokens</a>
             </p>
-            <input
-              type="password"
-              id="gh-token"
-              placeholder="ghp_xxxxxxxxxxxxxxxxxxxx"
-              autoFocus
-            />
+            <input type="password" id="gh-token" placeholder="ghp_xxxxxxxxxxxxxxxxxxxx" autoFocus />
             <div className="modal-actions">
               <button className="btn-secondary" onClick={() => setShowGhModal(false)}>Cancel</button>
               <button className="btn-primary" onClick={() => {
@@ -420,6 +422,43 @@ export default function App() {
                 if (input?.value) connectGitHub(input.value.trim())
               }}>Connect</button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {showSettings && (
+        <div className="modal-overlay" onClick={() => setShowSettings(false)}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <h2>Settings</h2>
+            <p>Collaboration server URL</p>
+            <p className="hint">
+              Default public server or your own (run <code>npm run collab:server</code> then use <code>ws://localhost:1234</code>)
+            </p>
+            <input
+              type="text"
+              value={collabServer}
+              onChange={(e) => setCollabServer(e.target.value)}
+              placeholder="wss://demos.yjs.dev or ws://localhost:1234"
+            />
+            <p style={{ marginTop: 12 }}>Room ID</p>
+            <input
+              type="text"
+              value={collabRoom}
+              onChange={(e) => setCollabRoom(e.target.value)}
+            />
+            <div className="modal-actions">
+              <button className="btn-secondary" onClick={() => setShowSettings(false)}>Close</button>
+              <button className="btn-primary" onClick={() => {
+                localStorage.setItem('noder-collab-server', collabServer)
+                setShowSettings(false)
+                setStatusMsg('Settings saved')
+              }}>Save</button>
+            </div>
+            {githubUser && (
+              <div style={{ marginTop: 16, borderTop: '1px solid #3e3e42', paddingTop: 12 }}>
+                <button className="btn-secondary" onClick={disconnectGitHub}>Disconnect GitHub</button>
+              </div>
+            )}
           </div>
         </div>
       )}
