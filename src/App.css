@@ -1,0 +1,132 @@
+.app {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  background: #1e1e1e;
+}
+
+.titlebar {
+  display: flex;
+  align-items: center;
+  height: 35px;
+  background: #323233;
+  border-bottom: 1px solid #252526;
+  padding: 0 12px;
+  -webkit-app-region: drag;
+  user-select: none;
+}
+
+.logo {
+  font-weight: 600;
+  font-size: 13px;
+  color: #fff;
+  margin-right: 24px;
+}
+
+.menu {
+  display: flex;
+  gap: 16px;
+  font-size: 13px;
+  color: #cccccc;
+}
+
+.menu span {
+  cursor: pointer;
+  -webkit-app-region: no-drag;
+}
+
+.menu span:hover {
+  color: #fff;
+}
+
+.status {
+  margin-left: auto;
+  font-size: 12px;
+  color: #858585;
+}
+
+.main {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+}
+
+.sidebar {
+  width: 240px;
+  background: #252526;
+  border-right: 1px solid #1e1e1e;
+  display: flex;
+  flex-direction: column;
+}
+
+.sidebar-header {
+  padding: 10px 16px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  color: #bbbbbb;
+}
+
+.file-tree {
+  padding: 4px 0;
+}
+
+.file {
+  padding: 4px 16px 4px 24px;
+  font-size: 13px;
+  color: #cccccc;
+  cursor: pointer;
+}
+
+.file:hover {
+  background: #2a2d2e;
+}
+
+.file.active {
+  background: #37373d;
+  color: #fff;
+}
+
+.editor-area {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  background: #1e1e1e;
+}
+
+.tabs {
+  display: flex;
+  height: 35px;
+  background: #252526;
+  border-bottom: 1px solid #1e1e1e;
+}
+
+.tab {
+  padding: 0 16px;
+  display: flex;
+  align-items: center;
+  font-size: 13px;
+  color: #969696;
+  border-right: 1px solid #1e1e1e;
+  cursor: pointer;
+}
+
+.tab.active {
+  background: #1e1e1e;
+  color: #fff;
+}
+
+.statusbar {
+  height: 22px;
+  background: #007acc;
+  color: #fff;
+  display: flex;
+  align-items: center;
+  padding: 0 12px;
+  font-size: 12px;
+  gap: 16px;
+}
+
+.statusbar .right {
+  margin-left: auto;
+}
