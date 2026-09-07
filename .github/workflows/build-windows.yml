@@ -10,6 +10,7 @@ on:
 jobs:
   build:
     runs-on: windows-latest
+    timeout-minutes: 45
 
     steps:
       - name: Checkout repository
@@ -20,29 +21,52 @@ jobs:
         with:
           node-version: '20'
 
-      - name: Install dependencies
-        run: npm install
+      - name: Cache node_modules
+        uses: actions/cache@v4
+        with:
+          path: node_modules
+          key: ${{ runner.os }}-node-${{ hashFiles('package.json') }}
+          restore-keys: |
+            ${{ runner.os }}-node-
 
-      - name: Build Windows application
+      - name: Install dependencies
+        run: npm install --prefer-offline --no-audit --no-fund
+        continue-on-error: false
+
+      - name: Ensure assets folder exists
+        run: |
+          if (-not (Test-Path assets)) { New-Item -ItemType Directory -Path assets | Out-Null }
+          # Create a minimal placeholder icon if missing so electron-builder does not fail hard
+          if (-not (Test-Path assets/icon.ico)) {
+            Write-Host "No icon.ico found — build will use default Electron icon"
+          }
+
+      - name: Build renderer + package Windows app
         run: npm run build:win
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           CSC_IDENTITY_AUTO_DISCOVERY: false
-          # Avoid code-signing failures on open-source builds
+          ELECTRON_BUILDER_ALLOW_UNRESOLVED_DEPENDENCIES: true
 
-      - name: List release folder
+      - name: List release output
         if: always()
         run: |
-          if (Test-Path release) { Get-ChildItem -Recurse release } else { Write-Host "No release folder" }
+          Write-Host "=== release folder ==="
+          if (Test-Path release) {
+            Get-ChildItem -Recurse release | Format-Table Name, Length, LastWriteTime
+          } else {
+            Write-Host "No release folder created"
+          }
 
-      - name: Upload artifacts
+      - name: Upload Windows artifacts
         uses: actions/upload-artifact@v4
         if: success()
         with:
-          name: Noder-Windows
+          name: Noder-Windows-v${{ github.run_number }}
           path: |
             release/*.exe
             release/*.yml
             release/*.blockmap
+            release/*.zip
           if-no-files-found: warn
-          retention-days: 14
+          retention-days: 30
