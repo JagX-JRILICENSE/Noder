@@ -19,30 +19,19 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
-
-      - name: Cache node_modules
-        uses: actions/cache@v4
-        with:
-          path: node_modules
-          key: ${{ runner.os }}-node-${{ hashFiles('package.json') }}
-          restore-keys: |
-            ${{ runner.os }}-node-
+          node-version: '22'
 
       - name: Install dependencies
-        run: npm install --prefer-offline --no-audit --no-fund
-        continue-on-error: false
+        run: npm install --no-audit --no-fund
+        env:
+          # Optional native modules (node-pty) must not fail the install
+          npm_config_optional: true
 
-      - name: Ensure assets folder exists
-        run: |
-          if (-not (Test-Path assets)) { New-Item -ItemType Directory -Path assets | Out-Null }
-          # Create a minimal placeholder icon if missing so electron-builder does not fail hard
-          if (-not (Test-Path assets/icon.ico)) {
-            Write-Host "No icon.ico found — build will use default Electron icon"
-          }
+      - name: Build renderer
+        run: npx vite build
 
-      - name: Build renderer + package Windows app
-        run: npm run build:win
+      - name: Package Windows app
+        run: npx electron-builder --win --publish never
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           CSC_IDENTITY_AUTO_DISCOVERY: false
@@ -64,9 +53,8 @@ jobs:
         with:
           name: Noder-Windows-v${{ github.run_number }}
           path: |
-            release/*.exe
-            release/*.yml
-            release/*.blockmap
-            release/*.zip
+            release/**/*.exe
+            release/**/*.yml
+            release/**/*.blockmap
           if-no-files-found: warn
           retention-days: 30
