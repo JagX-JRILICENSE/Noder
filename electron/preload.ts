@@ -11,8 +11,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   openExternal: (url: string) => ipcRenderer.invoke('shell:openExternal', url),
   getVersion: () => ipcRenderer.invoke('app:getVersion'),
 
-  // Extensions
   listExtensions: () => ipcRenderer.invoke('extensions:list'),
+  listCommands: () => ipcRenderer.invoke('extensions:listCommands'),
   executeCommand: (commandId: string, ...args: any[]) =>
     ipcRenderer.invoke('extensions:executeCommand', commandId, ...args),
   getStatusBarItems: () => ipcRenderer.invoke('extensions:getStatusBarItems'),
@@ -20,15 +20,16 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.on('extension:message', (_e, payload) => cb(payload))
   },
 
-  // Menu
   onMenuOpenFolder: (callback: () => void) => {
     ipcRenderer.on('menu-open-folder', callback)
   },
   onMenuNewTerminal: (callback: () => void) => {
     ipcRenderer.on('menu-new-terminal', callback)
   },
+  onMenuCommandPalette: (callback: () => void) => {
+    ipcRenderer.on('menu-command-palette', callback)
+  },
 
-  // PTY
   ptySpawn: (id: string, cwd?: string) => ipcRenderer.invoke('pty:spawn', id, cwd),
   ptyWrite: (id: string, data: string) => ipcRenderer.send('pty:write', id, data),
   ptyResize: (id: string, cols: number, rows: number) =>
@@ -41,14 +42,22 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.on('pty:exit', (_e, payload) => callback(payload))
   },
 
-  // Git
   gitStatus: (cwd?: string) => ipcRenderer.invoke('git:status', cwd),
   gitBlame: (filePath: string) => ipcRenderer.invoke('git:blame', filePath),
+  gitStage: (files: string | string[], cwd?: string) =>
+    ipcRenderer.invoke('git:stage', files, cwd),
+  gitUnstage: (files: string | string[], cwd?: string) =>
+    ipcRenderer.invoke('git:unstage', files, cwd),
+  gitCommit: (message: string, cwd?: string) =>
+    ipcRenderer.invoke('git:commit', message, cwd),
+  gitDiff: (filePath?: string, cwd?: string) =>
+    ipcRenderer.invoke('git:diff', filePath, cwd),
 
-  // Updater
   checkForUpdates: () => ipcRenderer.invoke('updater:check'),
   installUpdate: () => ipcRenderer.invoke('updater:install'),
   onUpdaterStatus: (cb: (payload: any) => void) => {
     ipcRenderer.on('updater:status', (_e, payload) => cb(payload))
   },
+
+  marketplaceList: () => ipcRenderer.invoke('marketplace:list'),
 })
