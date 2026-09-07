@@ -13,9 +13,27 @@ interface Props {
   onExecute: (id: string) => void
 }
 
+const HISTORY_KEY = 'noder-command-history'
+const MAX_HISTORY = 12
+
+function loadHistory(): string[] {
+  try {
+    return JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]')
+  } catch {
+    return []
+  }
+}
+
+function pushHistory(id: string) {
+  const prev = loadHistory().filter((x) => x !== id)
+  const next = [id, ...prev].slice(0, MAX_HISTORY)
+  localStorage.setItem(HISTORY_KEY, JSON.stringify(next))
+}
+
 export default function CommandPalette({ open, onClose, onExecute }: Props) {
   const [query, setQuery] = useState('')
   const [commands, setCommands] = useState<PaletteCommand[]>([])
+  const [history, setHistory] = useState<string[]>([])
   const [selected, setSelected] = useState(0)
   const inputRef = useRef<HTMLInputElement>(null)
 
@@ -23,6 +41,7 @@ export default function CommandPalette({ open, onClose, onExecute }: Props) {
     if (!open) return
     setQuery('')
     setSelected(0)
+    setHistory(loadHistory())
     window.electronAPI?.listCommands?.().then((list) => {
       setCommands(list || [])
     }).catch(() => setCommands([]))
@@ -31,14 +50,23 @@ export default function CommandPalette({ open, onClose, onExecute }: Props) {
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase()
-    if (!q) return commands
-    return commands.filter(
-      (c) =>
-        c.title.toLowerCase().includes(q) ||
-        c.id.toLowerCase().includes(q) ||
-        (c.category || '').toLowerCase().includes(q)
-    )
-  }, [commands, query])
+    let list = commands
+    if (q) {
+      list = commands.filter(
+        (c) =>
+          c.title.toLowerCase().includes(q) ||
+          c.id.toLowerCase().includes(q) ||
+          (c.category || '').toLowerCase().includes(q)
+      )
+    } else if (history.length) {
+      // Recent first when no query
+      const map = new Map(commands.map((c) => [c.id, c]))
+      const recent = history.map((id) => map.get(id)).filter(Boolean) as PaletteCommand[]
+      const rest = commands.filter((c) => !history.includes(c.id))
+      list = [...recent, ...rest]
+    }
+    return list
+  }, [commands, query, history])
 
   useEffect(() => {
     setSelected(0)
@@ -47,6 +75,7 @@ export default function CommandPalette({ open, onClose, onExecute }: Props) {
   if (!open) return null
 
   const run = (id: string) => {
+    pushHistory(id)
     onExecute(id)
     onClose()
   }
@@ -57,7 +86,7 @@ export default function CommandPalette({ open, onClose, onExecute }: Props) {
         <input
           ref={inputRef}
           className="palette-input"
-          placeholder="Type a command..."
+          placeholder="Type a command…"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           onKeyDown={(e) => {
@@ -75,6 +104,9 @@ export default function CommandPalette({ open, onClose, onExecute }: Props) {
             }
           }}
         />
+        {!query && history.length > 0 && (
+          <div className="palette-section-label">Recent</div>
+        )}
         <div className="palette-list">
           {filtered.length === 0 && (
             <div className="palette-empty">No commands found</div>
@@ -88,6 +120,9 @@ export default function CommandPalette({ open, onClose, onExecute }: Props) {
             >
               <span className="palette-title">{cmd.title}</span>
               <span className="palette-meta">
+                {!query && history.includes(cmd.id) && i < history.length && (
+                  <span className="palette-recent">recent</span>
+                )}
                 {cmd.category && <span className="palette-cat">{cmd.category}</span>}
               </span>
             </div>
