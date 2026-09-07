@@ -1,6 +1,6 @@
 {
   "name": "noder",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "Noder - Real-time collaborative code editor and app builder by JagX and JRILICENSE",
   "main": "dist-electron/main.js",
   "author": "JagX & JRILICENSE",
@@ -9,21 +9,23 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build && electron-builder",
-    "build:win": "vite build && electron-builder --win",
+    "build:win": "vite build && electron-builder --win --publish never",
     "build:dir": "vite build && electron-builder --dir",
     "preview": "vite preview",
     "electron:dev": "concurrently -k \"vite\" \"wait-on http://localhost:5173 && electron .\"",
     "collab:server": "node collab-server/server.js",
-    "postinstall": "electron-builder install-app-deps",
+    "postinstall": "electron-builder install-app-deps || true",
     "rebuild": "electron-rebuild -f -w node-pty"
   },
   "dependencies": {
     "@monaco-editor/react": "^4.6.0",
+    "electron-updater": "^6.3.9",
     "lucide-react": "^0.460.0",
     "monaco-editor": "^0.52.0",
     "node-pty": "^1.0.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
+    "simple-git": "^3.27.0",
     "uuid": "^11.0.3",
     "ws": "^8.18.0",
     "xterm": "^5.3.0",
@@ -69,6 +71,13 @@
     "asarUnpack": [
       "node_modules/node-pty/**/*"
     ],
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "JagX-JRILICENSE",
+        "repo": "Noder"
+      }
+    ],
     "win": {
       "target": [
         {
@@ -82,7 +91,8 @@
       ],
       "icon": "assets/icon.ico",
       "publisherName": "JagX & JRILICENSE",
-      "artifactName": "${productName}-${version}-${arch}.${ext}"
+      "artifactName": "${productName}-${version}-${arch}.${ext}",
+      "signAndEditExecutable": false
     },
     "nsis": {
       "oneClick": false,
