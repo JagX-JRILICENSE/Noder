@@ -69,11 +69,13 @@ declare global {
       openExternal: (url: string) => Promise<void>
       getVersion: () => Promise<string>
       listExtensions: () => Promise<NoderExtension[]>
-      executeCommand: (commandId: string, ...args: any[]) => Promise<{ ok: boolean; result?: any; error?: string }>
+      listCommands: () => Promise<{ id: string; title: string; category?: string; source: string }[]>
+      executeCommand: (commandId: string, ...args: any[]) => Promise<{ ok: boolean; result?: any; error?: string; builtin?: boolean; commandId?: string }>
       getStatusBarItems: () => Promise<{ id: string; text: string; command?: string; extensionId: string }[]>
       onExtensionMessage: (cb: (payload: { extensionId: string; message: string }) => void) => void
       onMenuOpenFolder: (callback: () => void) => void
       onMenuNewTerminal: (callback: () => void) => void
+      onMenuCommandPalette: (callback: () => void) => void
       ptySpawn: (id: string, cwd?: string) => Promise<{ ok: boolean; error?: string }>
       ptyWrite: (id: string, data: string) => void
       ptyResize: (id: string, cols: number, rows: number) => void
@@ -82,9 +84,14 @@ declare global {
       onPtyExit: (callback: (payload: { id: string }) => void) => void
       gitStatus: (cwd?: string) => Promise<GitStatus | null>
       gitBlame: (filePath: string) => Promise<BlameLine[]>
+      gitStage: (files: string | string[], cwd?: string) => Promise<{ ok: boolean; error?: string }>
+      gitUnstage: (files: string | string[], cwd?: string) => Promise<{ ok: boolean; error?: string }>
+      gitCommit: (message: string, cwd?: string) => Promise<{ ok: boolean; commit?: string; error?: string }>
+      gitDiff: (filePath?: string, cwd?: string) => Promise<string | null>
       checkForUpdates: () => Promise<{ ok: boolean; message?: string }>
       installUpdate: () => Promise<void>
       onUpdaterStatus: (cb: (payload: any) => void) => void
+      marketplaceList: () => Promise<{ extensions: any[] }>
     }
   }
 }
