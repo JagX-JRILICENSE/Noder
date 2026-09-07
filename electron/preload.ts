@@ -16,6 +16,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   executeCommand: (commandId: string, ...args: any[]) =>
     ipcRenderer.invoke('extensions:executeCommand', commandId, ...args),
   getStatusBarItems: () => ipcRenderer.invoke('extensions:getStatusBarItems'),
+  reloadExtensions: () => ipcRenderer.invoke('extensions:reload'),
   onExtensionMessage: (cb: (payload: { extensionId: string; message: string }) => void) => {
     ipcRenderer.on('extension:message', (_e, payload) => cb(payload))
   },
@@ -28,6 +29,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   },
   onMenuCommandPalette: (callback: () => void) => {
     ipcRenderer.on('menu-command-palette', callback)
+  },
+  onMenuToggleAI: (callback: () => void) => {
+    ipcRenderer.on('menu-toggle-ai', callback)
   },
 
   ptySpawn: (id: string, cwd?: string) => ipcRenderer.invoke('pty:spawn', id, cwd),
@@ -52,6 +56,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.invoke('git:commit', message, cwd),
   gitDiff: (filePath?: string, cwd?: string) =>
     ipcRenderer.invoke('git:diff', filePath, cwd),
+  gitPush: (cwd?: string) => ipcRenderer.invoke('git:push', cwd),
+  gitPull: (cwd?: string) => ipcRenderer.invoke('git:pull', cwd),
 
   checkForUpdates: () => ipcRenderer.invoke('updater:check'),
   installUpdate: () => ipcRenderer.invoke('updater:install'),
@@ -60,4 +66,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
   },
 
   marketplaceList: () => ipcRenderer.invoke('marketplace:list'),
+  marketplaceInstall: (extensionId: string) =>
+    ipcRenderer.invoke('marketplace:install', extensionId),
 })
