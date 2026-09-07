@@ -14,16 +14,17 @@ import {
   Save,
   X,
   Settings,
+  GitBranch,
+  Download,
 } from 'lucide-react'
 
 import FileExplorer from './components/FileExplorer'
-import Terminal from './components/Terminal'
+import TerminalPanel from './components/TerminalPanel'
 import LivePreview from './components/LivePreview'
 import GitHubPanel from './components/GitHubPanel'
-import type { OpenTab } from './types'
+import type { OpenTab, GitStatus, BlameLine } from './types'
 import './App.css'
 
-// Default public server; override with custom local server via Settings
 const DEFAULT_COLLAB = 'wss://demos.yjs.dev'
 
 function detectLanguage(filename: string): string {
@@ -56,6 +57,10 @@ export default function App() {
   const [showGhModal, setShowGhModal] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
   const [statusMsg, setStatusMsg] = useState('Ready')
+  const [gitStatus, setGitStatus] = useState<GitStatus | null>(null)
+  const [showBlame, setShowBlame] = useState(false)
+  const [blameLines, setBlameLines] = useState<BlameLine[]>([])
+  const [updaterStatus, setUpdaterStatus] = useState<string | null>(null)
 
   const editorRef = useRef<editor.IStandaloneCodeEditor | null>(null)
   const ydocRef = useRef<Y.Doc | null>(null)
@@ -64,6 +69,7 @@ export default function App() {
 
   const activeTab = tabs.find((t) => t.id === activeTabId) || null
 
+  // Menus & extension messages
   useEffect(() => {
     const handler = (e: Event) => {
       const folder = (e as CustomEvent).detail as string
@@ -81,10 +87,44 @@ export default function App() {
         }
       })
       window.electronAPI.onMenuNewTerminal?.(() => setShowTerminal(true))
+      window.electronAPI.onExtensionMessage?.(({ extensionId, message }) => {
+        setStatusMsg(`[${extensionId}] ${message}`)
+      })
+      window.electronAPI.onUpdaterStatus?.((payload) => {
+        if (payload.status === 'available') setUpdaterStatus('Update available')
+        else if (payload.status === 'downloading') setUpdaterStatus(`Downloading… ${Math.round(payload.progress?.percent || 0)}%`)
+        else if (payload.status === 'downloaded') setUpdaterStatus('Update ready — restart to install')
+        else if (payload.status === 'error') setUpdaterStatus(null)
+        else if (payload.status === 'not-available') setUpdaterStatus(null)
+      })
     }
 
     return () => window.removeEventListener('noder-open-folder', handler)
   }, [])
+
+  // Git status when workspace changes
+  useEffect(() => {
+    if (!workspace || !window.electronAPI?.gitStatus) {
+      setGitStatus(null)
+      return
+    }
+    const load = async () => {
+      const s = await window.electronAPI!.gitStatus(workspace)
+      setGitStatus(s)
+    }
+    load()
+    const interval = setInterval(load, 15000)
+    return () => clearInterval(interval)
+  }, [workspace])
+
+  // Blame when toggling or changing file
+  useEffect(() => {
+    if (!showBlame || !activeTab || !window.electronAPI?.gitBlame) {
+      setBlameLines([])
+      return
+    }
+    window.electronAPI.gitBlame(activeTab.path).then(setBlameLines)
+  }, [showBlame, activeTab?.path])
 
   const openFile = useCallback(async (path: string, name: string) => {
     const existing = tabs.find((t) => t.path === path)
@@ -92,13 +132,11 @@ export default function App() {
       setActiveTabId(existing.id)
       return
     }
-
     let content = '// Unable to read file'
     if (window.electronAPI) {
       const data = await window.electronAPI.readFile(path)
       if (data !== null) content = data
     }
-
     const tab: OpenTab = {
       id: uuidv4(),
       path,
@@ -120,10 +158,14 @@ export default function App() {
         prev.map((t) => (t.id === activeTab.id ? { ...t, isDirty: false } : t))
       )
       setStatusMsg(`Saved ${activeTab.name}`)
+      // Refresh git status after save
+      if (workspace && window.electronAPI.gitStatus) {
+        window.electronAPI.gitStatus(workspace).then(setGitStatus)
+      }
     } else {
       setStatusMsg('Failed to save')
     }
-  }, [activeTab])
+  }, [activeTab, workspace])
 
   const closeTab = (id: string) => {
     setTabs((prev) => prev.filter((t) => t.id !== id))
@@ -160,7 +202,6 @@ export default function App() {
       const ydoc = new Y.Doc()
       const ytext = ydoc.getText('monaco')
       ytext.insert(0, activeTab.content)
-
       const provider = new WebsocketProvider(collabServer, collabRoom, ydoc)
       const binding = new MonacoBinding(
         ytext,
@@ -168,7 +209,6 @@ export default function App() {
         new Set([editorRef.current]),
         provider.awareness
       )
-
       ydocRef.current = ydoc
       providerRef.current = provider
       bindingRef.current = binding
@@ -223,6 +263,8 @@ export default function App() {
     return () => window.removeEventListener('keydown', onKey)
   }, [saveCurrent])
 
+  const dirtyCount = gitStatus?.files?.length ?? 0
+
   return (
     <div className="app">
       <header className="titlebar">
@@ -244,49 +286,27 @@ export default function App() {
         </div>
 
         <div className="titlebar-actions">
-          <button
-            className={`icon-btn ${collabEnabled ? 'active' : ''}`}
-            title="Toggle Real-time Collaboration"
-            onClick={toggleCollab}
-          >
+          <button className={`icon-btn ${collabEnabled ? 'active' : ''}`} title="Collaboration" onClick={toggleCollab}>
             <Users size={16} />
           </button>
-          <button
-            className={`icon-btn ${showPreview ? 'active' : ''}`}
-            title="Toggle Live Preview"
-            onClick={() => setShowPreview(v => !v)}
-          >
+          <button className={`icon-btn ${showPreview ? 'active' : ''}`} title="Live Preview" onClick={() => setShowPreview(v => !v)}>
             <Eye size={16} />
           </button>
-          <button
-            className={`icon-btn ${showTerminal ? 'active' : ''}`}
-            title="Toggle Terminal (Ctrl+`)"
-            onClick={() => setShowTerminal(v => !v)}
-          >
+          <button className={`icon-btn ${showTerminal ? 'active' : ''}`} title="Terminal (Ctrl+`)" onClick={() => setShowTerminal(v => !v)}>
             <TerminalIcon size={16} />
           </button>
-          <button
-            className="icon-btn"
-            title="Save (Ctrl+S)"
-            onClick={saveCurrent}
-            disabled={!activeTab?.isDirty}
-          >
+          <button className={`icon-btn ${showBlame ? 'active' : ''}`} title="Toggle Git Blame" onClick={() => setShowBlame(v => !v)}>
+            <GitBranch size={16} />
+          </button>
+          <button className="icon-btn" title="Save (Ctrl+S)" onClick={saveCurrent} disabled={!activeTab?.isDirty}>
             <Save size={16} />
           </button>
-          <button
-            className="icon-btn"
-            title="Settings / Collab server"
-            onClick={() => setShowSettings(true)}
-          >
+          <button className="icon-btn" title="Settings" onClick={() => setShowSettings(true)}>
             <Settings size={16} />
           </button>
 
           {githubUser ? (
-            <button
-              className="gh-btn connected"
-              onClick={() => setShowGhPanel(v => !v)}
-              title={`@${githubUser} — click to open panel`}
-            >
+            <button className="gh-btn connected" onClick={() => setShowGhPanel(v => !v)} title={`@${githubUser}`}>
               <Github size={16} />
               <span>@{githubUser}</span>
             </button>
@@ -301,11 +321,7 @@ export default function App() {
 
       <div className="main">
         <aside className="sidebar">
-          <FileExplorer
-            workspace={workspace}
-            onOpenFile={openFile}
-            activePath={activeTab?.path}
-          />
+          <FileExplorer workspace={workspace} onOpenFile={openFile} activePath={activeTab?.path} />
         </aside>
 
         <div className="center">
@@ -318,37 +334,44 @@ export default function App() {
                   onClick={() => setActiveTabId(tab.id)}
                 >
                   <span>{tab.name}{tab.isDirty ? ' •' : ''}</span>
-                  <X
-                    size={14}
-                    className="tab-close"
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      closeTab(tab.id)
-                    }}
-                  />
+                  <X size={14} className="tab-close" onClick={(e) => { e.stopPropagation(); closeTab(tab.id) }} />
                 </div>
               ))}
             </div>
 
             <div className="editor-wrapper">
               {activeTab ? (
-                <Editor
-                  height="100%"
-                  language={activeTab.language}
-                  theme="vs-dark"
-                  value={activeTab.content}
-                  onChange={updateContent}
-                  onMount={handleEditorMount}
-                  options={{
-                    fontSize: 14,
-                    fontFamily: 'Consolas, "Courier New", monospace',
-                    minimap: { enabled: true },
-                    scrollBeyondLastLine: false,
-                    automaticLayout: true,
-                    wordWrap: 'on',
-                    padding: { top: 8 },
-                  }}
-                />
+                <div className="editor-with-blame">
+                  {showBlame && blameLines.length > 0 && (
+                    <div className="blame-gutter">
+                      {blameLines.slice(0, 200).map((b) => (
+                        <div key={b.line} className="blame-line" title={`${b.hash} ${b.author}: ${b.summary}`}>
+                          <span className="blame-author">{b.author.split(' ')[0]}</span>
+                          <span className="blame-hash">{b.hash.slice(0, 7)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  <div className="editor-main">
+                    <Editor
+                      height="100%"
+                      language={activeTab.language}
+                      theme="vs-dark"
+                      value={activeTab.content}
+                      onChange={updateContent}
+                      onMount={handleEditorMount}
+                      options={{
+                        fontSize: 14,
+                        fontFamily: 'Consolas, "Courier New", monospace',
+                        minimap: { enabled: true },
+                        scrollBeyondLastLine: false,
+                        automaticLayout: true,
+                        wordWrap: 'on',
+                        padding: { top: 8 },
+                      }}
+                    />
+                  </div>
+                </div>
               ) : (
                 <div className="welcome">
                   <h1>Noder</h1>
@@ -388,18 +411,33 @@ export default function App() {
         </div>
       </div>
 
-      <Terminal visible={showTerminal} cwd={workspace} />
+      <TerminalPanel visible={showTerminal} cwd={workspace} />
 
       <footer className="statusbar">
         <span className="status-left">{statusMsg}</span>
+        {gitStatus?.current && (
+          <span className="git-branch" title={dirtyCount ? `${dirtyCount} changed files` : 'Clean'}>
+            <GitBranch size={12} /> {gitStatus.current}
+            {dirtyCount > 0 && <span className="git-dirty">*</span>}
+            {gitStatus.ahead > 0 && <span> ↑{gitStatus.ahead}</span>}
+            {gitStatus.behind > 0 && <span> ↓{gitStatus.behind}</span>}
+          </span>
+        )}
         {collabEnabled && <span className="collab-badge">● LIVE · {collabRoom}</span>}
+        {updaterStatus && (
+          <span className="updater-badge" onClick={() => {
+            if (updaterStatus.includes('ready')) window.electronAPI?.installUpdate()
+          }}>
+            <Download size={12} /> {updaterStatus}
+          </span>
+        )}
         {activeTab && (
           <>
             <span>{activeTab.language}</span>
             <span>UTF-8</span>
           </>
         )}
-        <span className="right">Noder v0.3.0 · JagX & JRILICENSE</span>
+        <span className="right">Noder v0.4.0 · JagX & JRILICENSE</span>
       </footer>
 
       {showGhModal && (
@@ -432,7 +470,7 @@ export default function App() {
             <h2>Settings</h2>
             <p>Collaboration server URL</p>
             <p className="hint">
-              Default public server or your own (run <code>npm run collab:server</code> then use <code>ws://localhost:1234</code>)
+              Use public server or run <code>npm run collab:server</code> then <code>ws://localhost:1234</code>
             </p>
             <input
               type="text"
@@ -441,11 +479,7 @@ export default function App() {
               placeholder="wss://demos.yjs.dev or ws://localhost:1234"
             />
             <p style={{ marginTop: 12 }}>Room ID</p>
-            <input
-              type="text"
-              value={collabRoom}
-              onChange={(e) => setCollabRoom(e.target.value)}
-            />
+            <input type="text" value={collabRoom} onChange={(e) => setCollabRoom(e.target.value)} />
             <div className="modal-actions">
               <button className="btn-secondary" onClick={() => setShowSettings(false)}>Close</button>
               <button className="btn-primary" onClick={() => {
@@ -454,11 +488,23 @@ export default function App() {
                 setStatusMsg('Settings saved')
               }}>Save</button>
             </div>
-            {githubUser && (
-              <div style={{ marginTop: 16, borderTop: '1px solid #3e3e42', paddingTop: 12 }}>
+            <div style={{ marginTop: 16, borderTop: '1px solid #3e3e42', paddingTop: 12, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              <button className="btn-secondary" onClick={() => window.electronAPI?.checkForUpdates()}>
+                Check for Updates
+              </button>
+              {githubUser && (
                 <button className="btn-secondary" onClick={disconnectGitHub}>Disconnect GitHub</button>
-              </div>
-            )}
+              )}
+              <button
+                className="btn-secondary"
+                onClick={async () => {
+                  const res = await window.electronAPI?.executeCommand('hello-noder.sayHello')
+                  if (res?.ok) setStatusMsg('Extension command ran')
+                }}
+              >
+                Run Hello Extension
+              </button>
+            </div>
           </div>
         </div>
       )}
