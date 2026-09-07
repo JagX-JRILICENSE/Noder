@@ -7,7 +7,7 @@ import { WebsocketProvider } from 'y-websocket'
 import { v4 as uuidv4 } from 'uuid'
 import {
   FolderOpen, Terminal as TerminalIcon, Eye, Users, Github, Save, X,
-  Settings, GitBranch, Download, Search, Package,
+  Settings, GitBranch, Download, Search, Package, Sparkles,
 } from 'lucide-react'
 
 import FileExplorer from './components/FileExplorer'
@@ -17,6 +17,7 @@ import GitHubPanel from './components/GitHubPanel'
 import CommandPalette from './components/CommandPalette'
 import GitPanel from './components/GitPanel'
 import Marketplace from './components/Marketplace'
+import AIPanel from './components/AIPanel'
 import type { OpenTab, GitStatus, BlameLine } from './types'
 import './App.css'
 
@@ -41,6 +42,7 @@ export default function App() {
   const [showGhPanel, setShowGhPanel] = useState(false)
   const [showGitPanel, setShowGitPanel] = useState(false)
   const [showMarketplace, setShowMarketplace] = useState(false)
+  const [showAI, setShowAI] = useState(false)
   const [showPalette, setShowPalette] = useState(false)
   const [collabEnabled, setCollabEnabled] = useState(false)
   const [collabRoom, setCollabRoom] = useState('noder-room-' + Math.random().toString(36).slice(2, 8))
@@ -83,6 +85,7 @@ export default function App() {
       window.electronAPI.onMenuOpenFolder(() => openFolder())
       window.electronAPI.onMenuNewTerminal?.(() => setShowTerminal(true))
       window.electronAPI.onMenuCommandPalette?.(() => setShowPalette(true))
+      window.electronAPI.onMenuToggleAI?.(() => setShowAI((v) => !v))
       window.electronAPI.onExtensionMessage?.(({ extensionId, message }) => {
         setStatusMsg(`[${extensionId}] ${message}`)
       })
@@ -206,7 +209,20 @@ export default function App() {
       case 'noder.toggleCollab': toggleCollab(); break
       case 'noder.toggleGit': setShowGitPanel((v) => !v); break
       case 'noder.toggleMarketplace': setShowMarketplace((v) => !v); break
+      case 'noder.toggleAI': setShowAI((v) => !v); break
       case 'noder.saveFile': await saveCurrent(); break
+      case 'noder.gitPush': {
+        const res = await window.electronAPI?.gitPush?.(workspace || undefined)
+        setStatusMsg(res?.ok ? 'Git push succeeded' : (res?.error || 'Push failed'))
+        if (res?.ok && workspace) window.electronAPI?.gitStatus?.(workspace).then(setGitStatus)
+        break
+      }
+      case 'noder.gitPull': {
+        const res = await window.electronAPI?.gitPull?.(workspace || undefined)
+        setStatusMsg(res?.ok ? 'Git pull succeeded' : (res?.error || 'Pull failed'))
+        if (res?.ok && workspace) window.electronAPI?.gitStatus?.(workspace).then(setGitStatus)
+        break
+      }
       case 'noder.checkUpdates':
         window.electronAPI?.checkForUpdates()
         setStatusMsg('Checking for updates…')
@@ -217,13 +233,17 @@ export default function App() {
         break
       }
     }
-  }, [openFolder, toggleCollab, saveCurrent])
+  }, [openFolder, toggleCollab, saveCurrent, workspace])
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === 'p') {
         e.preventDefault()
         setShowPalette(true)
+      }
+      if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === 'a') {
+        e.preventDefault()
+        setShowAI((v) => !v)
       }
       if ((e.ctrlKey || e.metaKey) && e.key === 's') {
         e.preventDefault()
@@ -254,6 +274,9 @@ export default function App() {
         <div className="titlebar-actions">
           <button className="icon-btn" title="Command Palette (Ctrl+Shift+P)" onClick={() => setShowPalette(true)}>
             <Search size={16} />
+          </button>
+          <button className={`icon-btn ${showAI ? 'active' : ''}`} title="AI Assistant (Ctrl+Shift+A)" onClick={() => setShowAI((v) => !v)}>
+            <Sparkles size={16} />
           </button>
           <button className={`icon-btn ${collabEnabled ? 'active' : ''}`} title="Collaboration" onClick={toggleCollab}>
             <Users size={16} />
@@ -350,6 +373,7 @@ export default function App() {
                   </div>
                   <ul className="shortcuts">
                     <li><kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>P</kbd> Command Palette</li>
+                    <li><kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>A</kbd> AI Assistant</li>
                     <li><kbd>Ctrl</kbd>+<kbd>S</kbd> Save</li>
                     <li><kbd>Ctrl</kbd>+<kbd>`</kbd> Terminal</li>
                   </ul>
@@ -362,6 +386,12 @@ export default function App() {
           <GitHubPanel token={githubToken} user={githubUser} visible={showGhPanel} onClose={() => setShowGhPanel(false)} />
           <GitPanel workspace={workspace} visible={showGitPanel} onClose={() => setShowGitPanel(false)} onStatusChange={setGitStatus} />
           <Marketplace visible={showMarketplace} onClose={() => setShowMarketplace(false)} />
+          <AIPanel
+            visible={showAI}
+            onClose={() => setShowAI(false)}
+            contextCode={activeTab?.content}
+            contextFile={activeTab?.name}
+          />
         </div>
       </div>
 
@@ -390,7 +420,7 @@ export default function App() {
           </span>
         )}
         {activeTab && <><span>{activeTab.language}</span><span>UTF-8</span></>}
-        <span className="right">Noder v0.5.0 · JagX & JRILICENSE</span>
+        <span className="right">Noder v0.6.0 · JagX & JRILICENSE</span>
       </footer>
 
       <CommandPalette open={showPalette} onClose={() => setShowPalette(false)} onExecute={runCommand} />
