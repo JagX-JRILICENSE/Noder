@@ -1,6 +1,6 @@
 {
   "name": "noder",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Noder - Real-time collaborative code editor and app builder by JagX and JRILICENSE",
   "main": "dist-electron/main.js",
   "author": "JagX & JRILICENSE",
@@ -8,21 +8,24 @@
   "private": true,
   "scripts": {
     "dev": "vite",
-    "build": "tsc && vite build && electron-builder",
-    "build:win": "tsc && vite build && electron-builder --win",
-    "build:dir": "tsc && vite build && electron-builder --dir",
+    "build": "vite build && electron-builder",
+    "build:win": "vite build && electron-builder --win",
+    "build:dir": "vite build && electron-builder --dir",
     "preview": "vite preview",
     "electron:dev": "concurrently -k \"vite\" \"wait-on http://localhost:5173 && electron .\"",
-    "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
-    "postinstall": "electron-builder install-app-deps"
+    "collab:server": "node collab-server/server.js",
+    "postinstall": "electron-builder install-app-deps",
+    "rebuild": "electron-rebuild -f -w node-pty"
   },
   "dependencies": {
     "@monaco-editor/react": "^4.6.0",
     "lucide-react": "^0.460.0",
     "monaco-editor": "^0.52.0",
+    "node-pty": "^1.0.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "uuid": "^11.0.3",
+    "ws": "^8.18.0",
     "xterm": "^5.3.0",
     "xterm-addon-fit": "^0.8.0",
     "xterm-addon-web-links": "^0.9.0",
@@ -34,10 +37,12 @@
     "@types/react": "^18.3.12",
     "@types/react-dom": "^18.3.1",
     "@types/uuid": "^10.0.0",
+    "@types/ws": "^8.5.13",
     "@vitejs/plugin-react": "^4.3.3",
     "concurrently": "^9.1.0",
     "electron": "^33.2.0",
     "electron-builder": "^25.1.8",
+    "electron-rebuild": "^3.2.9",
     "typescript": "^5.6.3",
     "vite": "^5.4.11",
     "vite-plugin-electron": "^0.28.8",
@@ -54,11 +59,16 @@
     },
     "files": [
       "dist/**/*",
-      "dist-electron/**/*"
+      "dist-electron/**/*",
+      "extensions/**/*",
+      "collab-server/**/*"
     ],
     "extraMetadata": {
       "main": "dist-electron/main.js"
     },
+    "asarUnpack": [
+      "node_modules/node-pty/**/*"
+    ],
     "win": {
       "target": [
         {
