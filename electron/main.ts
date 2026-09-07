@@ -6,7 +6,6 @@ import os from 'node:os'
 import { autoUpdater } from 'electron-updater'
 import simpleGit, { SimpleGit } from 'simple-git'
 
-// Optional native module
 let pty: typeof import('node-pty') | null = null
 try {
   pty = require('node-pty')
@@ -23,7 +22,6 @@ let win: BrowserWindow | null = null
 let currentWorkspace: string | null = null
 const ptySessions = new Map<string, any>()
 
-// ---------- Extension system ----------
 interface ExtensionCommand {
   command: string
   title: string
@@ -56,6 +54,7 @@ interface ExtensionAPI {
 
 const loadedExtensions: NoderExtension[] = []
 const commandHandlers = new Map<string, (...args: any[]) => any>()
+const commandMeta = new Map<string, { title: string; category?: string; source: string }>()
 const statusBarItems: { id: string; text: string; command?: string; extensionId: string }[] = []
 
 function createExtensionAPI(ext: NoderExtension): ExtensionAPI {
@@ -96,13 +95,19 @@ function loadExtensions() {
         try {
           const manifest = JSON.parse(readFileSync(manifestPath, 'utf-8'))
           const contributes: ExtensionContribution = manifest.contributes || {}
+          const extId = manifest.name || entry.name
 
           if (contributes.commands) {
             for (const cmd of contributes.commands) {
+              commandMeta.set(cmd.command, {
+                title: cmd.title,
+                category: cmd.category || extId,
+                source: extId,
+              })
               if (!commandHandlers.has(cmd.command)) {
                 commandHandlers.set(cmd.command, () => {
                   win?.webContents.send('extension:message', {
-                    extensionId: manifest.name || entry.name,
+                    extensionId: extId,
                     message: `Command ${cmd.command} executed (no handler yet)`,
                   })
                 })
@@ -112,15 +117,12 @@ function loadExtensions() {
 
           if (contributes.statusBar) {
             for (const item of contributes.statusBar) {
-              statusBarItems.push({
-                ...item,
-                extensionId: manifest.name || entry.name,
-              })
+              statusBarItems.push({ ...item, extensionId: extId })
             }
           }
 
           const ext: NoderExtension = {
-            id: manifest.name || entry.name,
+            id: extId,
             name: manifest.displayName || manifest.name || entry.name,
             version: manifest.version || '0.0.0',
             description: manifest.description,
@@ -136,14 +138,11 @@ function loadExtensions() {
               const mod = require(mainPath)
               if (typeof mod.activate === 'function') {
                 ext.activate = mod.activate
-                const api = createExtensionAPI(ext)
-                Promise.resolve(mod.activate(api)).catch((e: any) =>
+                Promise.resolve(mod.activate(createExtensionAPI(ext))).catch((e: any) =>
                   console.warn(`[Noder] Extension ${ext.id} activate error:`, e)
                 )
               }
-              if (typeof mod.deactivate === 'function') {
-                ext.deactivate = mod.deactivate
-              }
+              if (typeof mod.deactivate === 'function') ext.deactivate = mod.deactivate
             } catch (e) {
               console.warn(`[Noder] Failed to activate ${ext.id}:`, e)
             }
@@ -157,40 +156,36 @@ function loadExtensions() {
       }
     } catch {}
   }
+
+  // Built-in commands for command palette
+  const builtins: { id: string; title: string; category: string }[] = [
+    { id: 'noder.openFolder', title: 'Open Folder', category: 'File' },
+    { id: 'noder.toggleTerminal', title: 'Toggle Terminal', category: 'View' },
+    { id: 'noder.togglePreview', title: 'Toggle Live Preview', category: 'View' },
+    { id: 'noder.toggleCollab', title: 'Toggle Collaboration', category: 'Collaboration' },
+    { id: 'noder.toggleGit', title: 'Toggle Git Panel', category: 'Git' },
+    { id: 'noder.toggleMarketplace', title: 'Open Extension Marketplace', category: 'Extensions' },
+    { id: 'noder.saveFile', title: 'Save File', category: 'File' },
+    { id: 'noder.checkUpdates', title: 'Check for Updates', category: 'Help' },
+  ]
+  for (const b of builtins) {
+    commandMeta.set(b.id, { title: b.title, category: b.category, source: 'noder' })
+  }
 }
 
-// ---------- Auto-updater ----------
 function setupAutoUpdater() {
   if (!app.isPackaged) return
-
   autoUpdater.autoDownload = true
   autoUpdater.autoInstallOnAppQuit = true
-
-  autoUpdater.on('checking-for-update', () => {
-    win?.webContents.send('updater:status', { status: 'checking' })
-  })
-  autoUpdater.on('update-available', (info) => {
-    win?.webContents.send('updater:status', { status: 'available', info })
-  })
-  autoUpdater.on('update-not-available', () => {
-    win?.webContents.send('updater:status', { status: 'not-available' })
-  })
-  autoUpdater.on('download-progress', (progress) => {
-    win?.webContents.send('updater:status', { status: 'downloading', progress })
-  })
-  autoUpdater.on('update-downloaded', (info) => {
-    win?.webContents.send('updater:status', { status: 'downloaded', info })
-  })
-  autoUpdater.on('error', (err) => {
-    win?.webContents.send('updater:status', { status: 'error', message: err.message })
-  })
-
-  setTimeout(() => {
-    autoUpdater.checkForUpdates().catch(() => {})
-  }, 4000)
+  autoUpdater.on('checking-for-update', () => win?.webContents.send('updater:status', { status: 'checking' }))
+  autoUpdater.on('update-available', (info) => win?.webContents.send('updater:status', { status: 'available', info }))
+  autoUpdater.on('update-not-available', () => win?.webContents.send('updater:status', { status: 'not-available' }))
+  autoUpdater.on('download-progress', (progress) => win?.webContents.send('updater:status', { status: 'downloading', progress }))
+  autoUpdater.on('update-downloaded', (info) => win?.webContents.send('updater:status', { status: 'downloaded', info }))
+  autoUpdater.on('error', (err) => win?.webContents.send('updater:status', { status: 'error', message: err.message }))
+  setTimeout(() => autoUpdater.checkForUpdates().catch(() => {}), 4000)
 }
 
-// ---------- Window ----------
 function createWindow() {
   win = new BrowserWindow({
     width: 1440,
@@ -209,7 +204,6 @@ function createWindow() {
   })
 
   win.once('ready-to-show', () => win?.show())
-
   win.webContents.setWindowOpenHandler(({ url }) => {
     shell.openExternal(url)
     return { action: 'deny' }
@@ -225,11 +219,7 @@ function createWindow() {
     {
       label: 'File',
       submenu: [
-        {
-          label: 'Open Folder...',
-          accelerator: 'CmdOrCtrl+O',
-          click: () => win?.webContents.send('menu-open-folder'),
-        },
+        { label: 'Open Folder...', accelerator: 'CmdOrCtrl+O', click: () => win?.webContents.send('menu-open-folder') },
         { type: 'separator' },
         { role: 'quit' },
       ],
@@ -244,6 +234,8 @@ function createWindow() {
     {
       label: 'View',
       submenu: [
+        { label: 'Command Palette...', accelerator: 'CmdOrCtrl+Shift+P', click: () => win?.webContents.send('menu-command-palette') },
+        { type: 'separator' },
         { role: 'reload' }, { role: 'toggleDevTools' }, { type: 'separator' },
         { role: 'resetZoom' }, { role: 'zoomIn' }, { role: 'zoomOut' },
         { type: 'separator' }, { role: 'togglefullscreen' },
@@ -252,11 +244,7 @@ function createWindow() {
     {
       label: 'Terminal',
       submenu: [
-        {
-          label: 'New Terminal',
-          accelerator: 'Ctrl+Shift+`',
-          click: () => win?.webContents.send('menu-new-terminal'),
-        },
+        { label: 'New Terminal', accelerator: 'Ctrl+Shift+`', click: () => win?.webContents.send('menu-new-terminal') },
       ],
     },
     {
@@ -265,14 +253,8 @@ function createWindow() {
         {
           label: 'Check for Updates...',
           click: () => {
-            if (app.isPackaged) {
-              autoUpdater.checkForUpdates()
-            } else {
-              win?.webContents.send('updater:status', {
-                status: 'error',
-                message: 'Updates only available in packaged builds',
-              })
-            }
+            if (app.isPackaged) autoUpdater.checkForUpdates()
+            else win?.webContents.send('updater:status', { status: 'error', message: 'Updates only in packaged builds' })
           },
         },
       ],
@@ -281,7 +263,6 @@ function createWindow() {
   Menu.setApplicationMenu(Menu.buildFromTemplate(template))
 }
 
-// ---------- IPC: FS & Dialogs ----------
 ipcMain.handle('dialog:openFolder', async () => {
   const result = await dialog.showOpenDialog(win!, { properties: ['openDirectory'] })
   if (result.canceled || !result.filePaths.length) return null
@@ -292,53 +273,43 @@ ipcMain.handle('dialog:openFolder', async () => {
 ipcMain.handle('fs:readDir', async (_e, dirPath: string) => {
   try {
     const entries = await fs.readdir(dirPath, { withFileTypes: true })
-    return entries.map((e) => ({
-      name: e.name,
-      isDirectory: e.isDirectory(),
-      path: path.join(dirPath, e.name),
-    }))
+    return entries.map((e) => ({ name: e.name, isDirectory: e.isDirectory(), path: path.join(dirPath, e.name) }))
   } catch {
     return []
   }
 })
 
 ipcMain.handle('fs:readFile', async (_e, filePath: string) => {
-  try {
-    return await fs.readFile(filePath, 'utf-8')
-  } catch {
-    return null
-  }
+  try { return await fs.readFile(filePath, 'utf-8') } catch { return null }
 })
 
 ipcMain.handle('fs:writeFile', async (_e, filePath: string, content: string) => {
-  try {
-    await fs.writeFile(filePath, content, 'utf-8')
-    return true
-  } catch {
-    return false
-  }
+  try { await fs.writeFile(filePath, content, 'utf-8'); return true } catch { return false }
 })
 
-ipcMain.handle('shell:openExternal', async (_e, url: string) => {
-  await shell.openExternal(url)
-})
-
+ipcMain.handle('shell:openExternal', async (_e, url: string) => { await shell.openExternal(url) })
 ipcMain.handle('app:getVersion', () => app.getVersion())
 
-// ---------- Extensions IPC ----------
 ipcMain.handle('extensions:list', () =>
   loadedExtensions.map((e) => ({
-    id: e.id,
-    name: e.name,
-    version: e.version,
-    description: e.description,
-    contributes: e.contributes,
+    id: e.id, name: e.name, version: e.version, description: e.description, contributes: e.contributes,
   }))
 )
 
+ipcMain.handle('extensions:listCommands', () => {
+  const list: { id: string; title: string; category?: string; source: string }[] = []
+  for (const [id, meta] of commandMeta) {
+    list.push({ id, ...meta })
+  }
+  return list.sort((a, b) => (a.category || '').localeCompare(b.category || '') || a.title.localeCompare(b.title))
+})
+
 ipcMain.handle('extensions:executeCommand', async (_e, commandId: string, ...args: any[]) => {
   const handler = commandHandlers.get(commandId)
-  if (!handler) return { ok: false, error: 'Command not found' }
+  if (!handler) {
+    // Built-in commands are handled in renderer
+    return { ok: true, builtin: true, commandId }
+  }
   try {
     const result = await handler(...args)
     return { ok: true, result }
@@ -349,7 +320,6 @@ ipcMain.handle('extensions:executeCommand', async (_e, commandId: string, ...arg
 
 ipcMain.handle('extensions:getStatusBarItems', () => statusBarItems)
 
-// ---------- Git status & blame ----------
 function getGit(cwd?: string): SimpleGit | null {
   const root = cwd || currentWorkspace
   if (!root) return null
@@ -366,11 +336,7 @@ ipcMain.handle('git:status', async (_e, cwd?: string) => {
       tracking: status.tracking,
       ahead: status.ahead,
       behind: status.behind,
-      files: status.files.map((f) => ({
-        path: f.path,
-        index: f.index,
-        working_dir: f.working_dir,
-      })),
+      files: status.files.map((f) => ({ path: f.path, index: f.index, working_dir: f.working_dir })),
       isClean: status.isClean(),
     }
   } catch {
@@ -384,24 +350,15 @@ ipcMain.handle('git:blame', async (_e, filePath: string) => {
     const git = simpleGit(dir)
     const result = await git.raw(['blame', '--line-porcelain', filePath])
     const lines: { line: number; hash: string; author: string; summary: string }[] = []
-    const blocks = result.split('\n')
     let current: any = {}
     let lineNum = 0
-    for (const row of blocks) {
-      if (/^[0-9a-f]{40}/.test(row)) {
-        current = { hash: row.slice(0, 8) }
-      } else if (row.startsWith('author ')) {
-        current.author = row.slice(7)
-      } else if (row.startsWith('summary ')) {
-        current.summary = row.slice(8)
-      } else if (row.startsWith('\t')) {
+    for (const row of result.split('\n')) {
+      if (/^[0-9a-f]{40}/.test(row)) current = { hash: row.slice(0, 8) }
+      else if (row.startsWith('author ')) current.author = row.slice(7)
+      else if (row.startsWith('summary ')) current.summary = row.slice(8)
+      else if (row.startsWith('\t')) {
         lineNum++
-        lines.push({
-          line: lineNum,
-          hash: current.hash || '00000000',
-          author: current.author || 'Unknown',
-          summary: current.summary || '',
-        })
+        lines.push({ line: lineNum, hash: current.hash || '00000000', author: current.author || 'Unknown', summary: current.summary || '' })
       }
     }
     return lines
@@ -410,11 +367,54 @@ ipcMain.handle('git:blame', async (_e, filePath: string) => {
   }
 })
 
-// ---------- PTY (multi-session) ----------
+ipcMain.handle('git:stage', async (_e, files: string | string[], cwd?: string) => {
+  try {
+    const git = getGit(cwd)
+    if (!git) return { ok: false, error: 'No workspace' }
+    await git.add(files)
+    return { ok: true }
+  } catch (e: any) {
+    return { ok: false, error: e.message }
+  }
+})
+
+ipcMain.handle('git:unstage', async (_e, files: string | string[], cwd?: string) => {
+  try {
+    const git = getGit(cwd)
+    if (!git) return { ok: false, error: 'No workspace' }
+    await git.reset(['HEAD', '--', ...(Array.isArray(files) ? files : [files])])
+    return { ok: true }
+  } catch (e: any) {
+    return { ok: false, error: e.message }
+  }
+})
+
+ipcMain.handle('git:commit', async (_e, message: string, cwd?: string) => {
+  try {
+    const git = getGit(cwd)
+    if (!git) return { ok: false, error: 'No workspace' }
+    if (!message?.trim()) return { ok: false, error: 'Empty commit message' }
+    const result = await git.commit(message.trim())
+    return { ok: true, commit: result.commit }
+  } catch (e: any) {
+    return { ok: false, error: e.message }
+  }
+})
+
+ipcMain.handle('git:diff', async (_e, filePath?: string, cwd?: string) => {
+  try {
+    const git = getGit(cwd)
+    if (!git) return null
+    if (filePath) return await git.diff(['--', filePath])
+    return await git.diff()
+  } catch {
+    return null
+  }
+})
+
 ipcMain.handle('pty:spawn', (_e, id: string, cwd?: string) => {
   if (!pty) return { ok: false, error: 'node-pty not available' }
   if (ptySessions.has(id)) return { ok: true }
-
   const shellCmd = process.platform === 'win32' ? 'powershell.exe' : process.env.SHELL || 'bash'
   try {
     const term = pty.spawn(shellCmd, [], {
@@ -424,15 +424,11 @@ ipcMain.handle('pty:spawn', (_e, id: string, cwd?: string) => {
       cwd: cwd || currentWorkspace || os.homedir(),
       env: process.env as any,
     })
-
-    term.onData((data: string) => {
-      win?.webContents.send('pty:data', { id, data })
-    })
+    term.onData((data: string) => win?.webContents.send('pty:data', { id, data }))
     term.onExit(() => {
       ptySessions.delete(id)
       win?.webContents.send('pty:exit', { id })
     })
-
     ptySessions.set(id, term)
     return { ok: true }
   } catch (err: any) {
@@ -440,26 +436,16 @@ ipcMain.handle('pty:spawn', (_e, id: string, cwd?: string) => {
   }
 })
 
-ipcMain.on('pty:write', (_e, id: string, data: string) => {
-  ptySessions.get(id)?.write(data)
-})
-
+ipcMain.on('pty:write', (_e, id: string, data: string) => { ptySessions.get(id)?.write(data) })
 ipcMain.on('pty:resize', (_e, id: string, cols: number, rows: number) => {
-  try {
-    ptySessions.get(id)?.resize(cols, rows)
-  } catch {}
+  try { ptySessions.get(id)?.resize(cols, rows) } catch {}
 })
-
 ipcMain.handle('pty:kill', (_e, id: string) => {
   const term = ptySessions.get(id)
-  if (term) {
-    try { term.kill() } catch {}
-    ptySessions.delete(id)
-  }
+  if (term) { try { term.kill() } catch {} ptySessions.delete(id) }
   return true
 })
 
-// ---------- Updater IPC ----------
 ipcMain.handle('updater:check', async () => {
   if (!app.isPackaged) return { ok: false, message: 'Only in packaged builds' }
   try {
@@ -470,11 +456,19 @@ ipcMain.handle('updater:check', async () => {
   }
 })
 
-ipcMain.handle('updater:install', () => {
-  autoUpdater.quitAndInstall(false, true)
+ipcMain.handle('updater:install', () => { autoUpdater.quitAndInstall(false, true) })
+
+// Marketplace catalog (local skeleton)
+ipcMain.handle('marketplace:list', async () => {
+  const catalogPath = path.join(app.getAppPath(), 'marketplace', 'catalog.json')
+  try {
+    if (existsSync(catalogPath)) {
+      return JSON.parse(readFileSync(catalogPath, 'utf-8'))
+    }
+  } catch {}
+  return { extensions: [] }
 })
 
-// ---------- Lifecycle ----------
 app.whenReady().then(() => {
   loadExtensions()
   createWindow()
