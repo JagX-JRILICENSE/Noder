@@ -22,18 +22,25 @@ export default function Marketplace({ visible, onClose }: Props) {
   const [installed, setInstalled] = useState<string[]>([])
   const [query, setQuery] = useState('')
   const [loading, setLoading] = useState(false)
+  const [installing, setInstalling] = useState<string | null>(null)
+  const [msg, setMsg] = useState<string | null>(null)
 
-  useEffect(() => {
-    if (!visible) return
+  const refresh = async () => {
     setLoading(true)
-    Promise.all([
-      window.electronAPI?.marketplaceList?.() ?? Promise.resolve({ extensions: [] }),
-      window.electronAPI?.listExtensions?.() ?? Promise.resolve([]),
-    ]).then(([catalog, local]) => {
+    try {
+      const [catalog, local] = await Promise.all([
+        window.electronAPI?.marketplaceList?.() ?? { extensions: [] },
+        window.electronAPI?.listExtensions?.() ?? [],
+      ])
       setExtensions(catalog?.extensions || [])
       setInstalled((local || []).map((e: any) => e.id))
+    } finally {
       setLoading(false)
-    }).catch(() => setLoading(false))
+    }
+  }
+
+  useEffect(() => {
+    if (visible) refresh()
   }, [visible])
 
   if (!visible) return null
@@ -48,6 +55,21 @@ export default function Marketplace({ visible, onClose }: Props) {
       e.categories.some((c) => c.toLowerCase().includes(q))
     )
   })
+
+  const install = async (id: string) => {
+    setInstalling(id)
+    setMsg(null)
+    const res = await window.electronAPI?.marketplaceInstall?.(id)
+    setInstalling(null)
+    if (res?.ok) {
+      setMsg(`Installed ${id}`)
+      await refresh()
+      await window.electronAPI?.reloadExtensions?.()
+      await refresh()
+    } else {
+      setMsg(res?.error || 'Install failed')
+    }
+  }
 
   return (
     <div className="marketplace-panel">
@@ -66,6 +88,8 @@ export default function Marketplace({ visible, onClose }: Props) {
           onChange={(e) => setQuery(e.target.value)}
         />
       </div>
+
+      {msg && <div className="marketplace-msg">{msg}</div>}
 
       <div className="marketplace-list">
         {loading && <div className="git-empty">Loading catalog…</div>}
@@ -98,8 +122,13 @@ export default function Marketplace({ visible, onClose }: Props) {
                 ) : ext.install === 'coming-soon' ? (
                   <span className="coming-soon">Coming soon</span>
                 ) : (
-                  <button className="btn-small" disabled>
-                    <Download size={12} /> Install
+                  <button
+                    className="btn-small"
+                    disabled={installing === ext.id}
+                    onClick={() => install(ext.id)}
+                  >
+                    <Download size={12} />
+                    {installing === ext.id ? 'Installing…' : 'Install'}
                   </button>
                 )}
               </div>
@@ -109,7 +138,7 @@ export default function Marketplace({ visible, onClose }: Props) {
       </div>
 
       <div className="marketplace-footer">
-        Local extensions load from <code>extensions/</code>. Remote install coming later.
+        Installed into user extensions folder. Restart or reload to activate handlers.
       </div>
     </div>
   )
