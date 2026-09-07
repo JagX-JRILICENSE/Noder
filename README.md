@@ -3,23 +3,16 @@
 **Real-time collaborative code editor & app builder**  
 Created by **JagX** and **JRILICENSE**
 
-Noder is a modern development environment inspired by Visual Studio Code — with real-time collaboration, multi-terminal, Git status/blame, deep extension API, GitHub integration, live preview, and auto-updating Windows builds.
+## Features (v0.5.0)
 
-## Features (v0.4.0)
+- **Command Palette** — `Ctrl+Shift+P` (built-in + extension commands)
+- **Richer Git UI** — stage / unstage / commit, branch status, blame gutter
+- **Extension Marketplace skeleton** — local catalog + installed detection
+- **macOS / Linux / Windows builds** — electron-builder + multi-OS CI
+- **Real-time collaboration** — Yjs (public or `npm run collab:server`)
+- Multi-terminal tabs, Monaco editor, live preview, GitHub panel, auto-updater
 
-- [x] **Monaco Editor** — Same engine as VS Code
-- [x] **Real-time Collaboration** — Yjs (public or self-hosted server)
-- [x] **File Explorer** — Recursive tree, multi-tab editing
-- [x] **Multi-terminal tabs** — Multiple node-pty sessions (+ / ✕)
-- [x] **Git status & blame** — Branch in status bar, toggle blame gutter
-- [x] **Deep Extension API** — Commands, status bar contributions, activate/deactivate
-- [x] **Auto-updater** — electron-updater via GitHub Releases
-- [x] **Live Preview** — HTML / Markdown / JS / TS
-- [x] **GitHub panel** — List repos, create Issues & PRs
-- [x] **Custom collab server** — `npm run collab:server`
-- [x] **Windows packaging + hardened CI**
-
-## Quick Start
+## Quick start
 
 ```bash
 git clone https://github.com/JagX-JRILICENSE/Noder.git
@@ -28,53 +21,41 @@ npm install
 npm run electron:dev
 ```
 
-### Full system terminal
+### Real-time collaboration
+
+1. Open a file
+2. Settings → set collab server (`wss://demos.yjs.dev` or `ws://localhost:1234`)
+3. Click **Users** icon (or Command Palette → Toggle Collaboration)
+4. Share the **room ID** from the status bar
+
+Local server:
 
 ```bash
-npm run rebuild   # after installing build tools on Windows
+npm run collab:server
 ```
 
-Open terminal with **Ctrl+`**. Use **+** to open additional terminal tabs.
+### Command Palette
 
-### Git blame
+`Ctrl+Shift+P` (or View menu) — search and run commands.
 
-Open a file inside a Git repo → click the **Git branch** icon in the title bar to toggle the blame gutter.
+### Git
 
-### Extensions
+Open a Git repo folder → click branch icon for **Source Control** panel (stage/commit). Toggle blame with the **B** button.
 
-Place extensions under `extensions/<name>/` with a `package.json` and `extension.js`:
+### Extensions marketplace
 
-```js
-function activate(api) {
-  api.registerCommand('my.cmd', () => {
-    api.showMessage('Hello!')
-  })
-}
-module.exports = { activate }
-```
+Package icon → browse `marketplace/catalog.json`. Bundled: `extensions/hello-noder`.
 
-Sample extension: `extensions/hello-noder`.
-
-### Auto-updater
-
-Packaged builds check GitHub Releases automatically.  
-Help → Check for Updates, or click the green badge in the status bar when an update is ready.
-
-### Custom collab server
+### Builds
 
 ```bash
-npm run collab:server   # ws://localhost:1234
+npm run build:win     # Windows
+npm run build:mac     # macOS
+npm run build:linux   # Linux
+npm run build:all     # all (on supported hosts)
 ```
 
-Settings (gear) → set server URL → enable collab.
-
-### Build Windows app
-
-```bash
-npm run build:win
-```
-
-CI on `main` produces artifacts. Publish a GitHub Release with the built installers to enable auto-updates for users.
+CI (`.github/workflows/build.yml`) builds **Windows, macOS, and Linux** on every push to `main`.
 
 ## License
 
