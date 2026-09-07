@@ -72,11 +72,13 @@ declare global {
       listCommands: () => Promise<{ id: string; title: string; category?: string; source: string }[]>
       executeCommand: (commandId: string, ...args: any[]) => Promise<{ ok: boolean; result?: any; error?: string; builtin?: boolean; commandId?: string }>
       getStatusBarItems: () => Promise<{ id: string; text: string; command?: string; extensionId: string }[]>
+      reloadExtensions: () => Promise<{ ok: boolean; count: number }>
       onExtensionMessage: (cb: (payload: { extensionId: string; message: string }) => void) => void
       onMenuOpenFolder: (callback: () => void) => void
       onMenuNewTerminal: (callback: () => void) => void
       onMenuCommandPalette: (callback: () => void) => void
-      ptySpawn: (id: string, cwd?: string) => Promise<{ ok: boolean; error?: string }>
+      onMenuToggleAI: (callback: () => void) => void
+      ptySpawn: (id: string, cwd?: string) => Promise<{ ok: boolean; error?: string; mode?: string }>
       ptyWrite: (id: string, data: string) => void
       ptyResize: (id: string, cols: number, rows: number) => void
       ptyKill: (id: string) => Promise<boolean>
@@ -88,10 +90,13 @@ declare global {
       gitUnstage: (files: string | string[], cwd?: string) => Promise<{ ok: boolean; error?: string }>
       gitCommit: (message: string, cwd?: string) => Promise<{ ok: boolean; commit?: string; error?: string }>
       gitDiff: (filePath?: string, cwd?: string) => Promise<string | null>
+      gitPush: (cwd?: string) => Promise<{ ok: boolean; error?: string; result?: string }>
+      gitPull: (cwd?: string) => Promise<{ ok: boolean; error?: string; summary?: any }>
       checkForUpdates: () => Promise<{ ok: boolean; message?: string }>
       installUpdate: () => Promise<void>
       onUpdaterStatus: (cb: (payload: any) => void) => void
       marketplaceList: () => Promise<{ extensions: any[] }>
+      marketplaceInstall: (extensionId: string) => Promise<{ ok: boolean; error?: string; path?: string }>
     }
   }
 }
