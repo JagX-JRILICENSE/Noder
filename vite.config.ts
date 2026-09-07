@@ -8,6 +8,18 @@ export default defineConfig({
     electron({
       main: {
         entry: 'electron/main.ts',
+        vite: {
+          build: {
+            rollupOptions: {
+              external: [
+                'electron',
+                'node-pty',
+                'electron-updater',
+                'simple-git',
+              ],
+            },
+          },
+        },
       },
       preload: {
         input: 'electron/preload.ts',
@@ -17,5 +29,8 @@ export default defineConfig({
   ],
   server: {
     port: 5173,
+  },
+  build: {
+    chunkSizeWarningLimit: 3000,
   },
 })
