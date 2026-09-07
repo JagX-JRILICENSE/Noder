@@ -97,10 +97,8 @@ function loadExtensions() {
           const manifest = JSON.parse(readFileSync(manifestPath, 'utf-8'))
           const contributes: ExtensionContribution = manifest.contributes || {}
 
-          // Register declared commands
           if (contributes.commands) {
             for (const cmd of contributes.commands) {
-              // Placeholder until activate registers real handler
               if (!commandHandlers.has(cmd.command)) {
                 commandHandlers.set(cmd.command, () => {
                   win?.webContents.send('extension:message', {
@@ -112,7 +110,6 @@ function loadExtensions() {
             }
           }
 
-          // Status bar contributions
           if (contributes.statusBar) {
             for (const item of contributes.statusBar) {
               statusBarItems.push({
@@ -131,12 +128,10 @@ function loadExtensions() {
             contributes,
           }
 
-          // Try to load and activate
           const mainFile = manifest.main || 'extension.js'
           const mainPath = path.join(extPath, mainFile)
           if (existsSync(mainPath)) {
             try {
-              // Clear cache for hot reload friendliness in dev
               delete require.cache[require.resolve(mainPath)]
               const mod = require(mainPath)
               if (typeof mod.activate === 'function') {
@@ -190,7 +185,6 @@ function setupAutoUpdater() {
     win?.webContents.send('updater:status', { status: 'error', message: err.message })
   })
 
-  // Check a few seconds after launch
   setTimeout(() => {
     autoUpdater.checkForUpdates().catch(() => {})
   }, 4000)
@@ -351,7 +345,7 @@ ipcMain.handle('extensions:executeCommand', async (_e, commandId: string, ...arg
   } catch (err: any) {
     return { ok: false, error: err?.message || String(err) }
   }
-)
+})
 
 ipcMain.handle('extensions:getStatusBarItems', () => statusBarItems)
 
@@ -388,7 +382,6 @@ ipcMain.handle('git:blame', async (_e, filePath: string) => {
   try {
     const dir = path.dirname(filePath)
     const git = simpleGit(dir)
-    // Use porcelain blame for structured data
     const result = await git.raw(['blame', '--line-porcelain', filePath])
     const lines: { line: number; hash: string; author: string; summary: string }[] = []
     const blocks = result.split('\n')
