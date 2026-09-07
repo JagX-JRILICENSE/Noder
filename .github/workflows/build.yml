@@ -15,10 +15,13 @@ jobs:
         include:
           - os: windows-latest
             platform: win
+            args: --win
           - os: macos-latest
             platform: mac
+            args: --mac
           - os: ubuntu-latest
             platform: linux
+            args: --linux
 
     runs-on: ${{ matrix.os }}
     timeout-minutes: 50
@@ -30,37 +33,26 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
 
       - name: Install dependencies
         run: npm install --no-audit --no-fund
 
-      - name: Install Linux build deps
+      - name: Install Linux packaging deps
         if: matrix.platform == 'linux'
         run: |
           sudo apt-get update
           sudo apt-get install -y rpm fakeroot dpkg
 
-      - name: Build Windows
-        if: matrix.platform == 'win'
-        run: npm run build:win
+      - name: Build renderer
+        run: npx vite build
+
+      - name: Package app
+        run: npx electron-builder ${{ matrix.args }} --publish never
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           CSC_IDENTITY_AUTO_DISCOVERY: false
           ELECTRON_BUILDER_ALLOW_UNRESOLVED_DEPENDENCIES: true
-
-      - name: Build macOS
-        if: matrix.platform == 'mac'
-        run: npm run build:mac
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          CSC_IDENTITY_AUTO_DISCOVERY: false
-
-      - name: Build Linux
-        if: matrix.platform == 'linux'
-        run: npm run build:linux
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: List release
         if: always()
@@ -74,7 +66,6 @@ jobs:
         with:
           name: Noder-${{ matrix.platform }}-${{ github.run_number }}
           path: |
-            release/*.{exe,dmg,zip,AppImage,deb,yml,blockmap}
-            release/**/*.{exe,dmg,zip,AppImage,deb}
+            release/**/*
           if-no-files-found: warn
           retention-days: 30
