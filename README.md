@@ -3,80 +3,80 @@
 **Real-time collaborative code editor & app builder**  
 Created by **JagX** and **JRILICENSE**
 
-Noder is a modern, high-performance development environment designed to feel exactly like Visual Studio Code — with seamless real-time collaboration, powerful GitHub integration, live preview, and the ability to build and package Windows/laptop applications directly from the editor.
+Noder is a modern development environment inspired by Visual Studio Code — with real-time collaboration, system terminal, GitHub integration, live preview, and Windows packaging.
 
-## Features (v0.2.0)
+## Features (v0.3.0)
 
 - [x] **Monaco Editor** — Same engine as VS Code
-- [x] **Real-time Collaboration** — Powered by Yjs + y-monaco (share a room ID and code together live)
-- [x] **File Explorer** — Open any folder, recursive tree, open files into tabs
-- [x] **Multi-tab Editing** — Dirty indicators, close tabs, language detection
-- [x] **Integrated Terminal** — xterm.js based terminal panel (Ctrl+`)
-- [x] **Live Preview** — Instant preview for HTML, Markdown, JavaScript & TypeScript
-- [x] **GitHub Login** — Connect with a Personal Access Token
-- [x] **Windows Packaging** — electron-builder (NSIS installer + portable)
-- [x] **GitHub Actions CI** — Automatic Windows builds on every push
-- [ ] Extension system
-- [ ] Full node-pty shell
-- [ ] AI-assisted coding (future)
+- [x] **Real-time Collaboration** — Yjs + y-monaco (public or your own server)
+- [x] **File Explorer** — Open folders, recursive tree, multi-tab editing
+- [x] **Full System Terminal** — node-pty + xterm.js (PowerShell / bash) with fallback
+- [x] **Live Preview** — Instant HTML / Markdown / JS / TS preview
+- [x] **GitHub Integration** — Login, list repos, create Issues & Pull Requests
+- [x] **Extension System Foundation** — Load extensions from `/extensions`
+- [x] **Custom Collab Server** — `npm run collab:server`
+- [x] **Windows Packaging** — NSIS installer + portable via electron-builder
+- [x] **GitHub Actions CI** — Automated Windows builds
+- [x] **Branding** — Logo SVG + icon generation instructions
 
-## Tech Stack
-
-- **Frontend**: React 18 + TypeScript + Monaco Editor
-- **Desktop**: Electron 33
-- **Real-time**: Yjs + y-monaco + y-websocket
-- **Terminal**: xterm.js
-- **Build**: Vite + electron-builder
-- **CI/CD**: GitHub Actions (Windows)
-
-## Getting Started
-
-### Prerequisites
-- Node.js 20+
-- Git
-- Windows 10/11 recommended for packaging
-
-### Development
+## Quick Start
 
 ```bash
 git clone https://github.com/JagX-JRILICENSE/Noder.git
 cd Noder
 npm install
-npm run electron:dev   # recommended (full desktop experience)
-# or
-npm run dev            # browser only
+npm run electron:dev
 ```
 
-### Keyboard Shortcuts
+### Full system terminal (node-pty)
 
-| Shortcut | Action |
-|----------|--------|
-| `Ctrl+O` / Menu | Open Folder |
-| `Ctrl+S` | Save current file |
-| `Ctrl+`` ` | Toggle Terminal |
+On Windows you need build tools (Visual Studio Build Tools / windows-build-tools). Then:
 
-### Build Windows App
+```bash
+npm run rebuild
+```
+
+If node-pty fails to load, Noder automatically falls back to a simulated shell.
+
+### Custom collaboration server
+
+```bash
+npm run collab:server
+# Listening on ws://localhost:1234
+```
+
+In Noder: open **Settings** (gear icon) → set Collaboration server URL to `ws://localhost:1234` → Save. Then enable collab and share the room ID.
+
+### GitHub
+
+1. Click **Login** and paste a Personal Access Token (classic) with `repo` scope.
+2. Click your username to open the GitHub panel.
+3. Browse repos, create Issues and Pull Requests directly from Noder.
+
+### Build Windows app
 
 ```bash
 npm run build:win
 ```
 
-Outputs appear in the `release/` folder (NSIS installer + portable executable).
+Artifacts appear in `release/`. The GitHub Actions workflow also builds on every push to `main`.
 
-The GitHub Actions workflow also produces Windows artifacts on every push to `main`.
+### App icon
 
-### Real-time Collaboration
+See [assets/README.md](assets/README.md) for generating `icon.ico` from the included logo.
 
-1. Open a file
-2. Click the **Users** icon in the title bar
-3. Share the room ID shown in the status bar with collaborators
-4. They open the same room — edits sync in real time via the public Yjs demo server
+## Project structure
 
-> For production use, deploy your own y-websocket server.
-
-### GitHub Integration
-
-Click **Login** in the title bar and paste a GitHub Personal Access Token (classic) with `repo` scope.
+```
+Noder/
+├── electron/          # Main process + preload (PTY, FS, extensions)
+├── src/               # React + Monaco UI
+│   ├── components/    # FileExplorer, Terminal, LivePreview, GitHubPanel
+├── extensions/       # Sample + user extensions
+├── collab-server/    # Custom Yjs WebSocket server
+├── assets/           # Logo + icon instructions
+├── .github/workflows # Windows CI
+```
 
 ## License
 
