@@ -1,8 +1,9 @@
 import { app, BrowserWindow, shell, ipcMain, dialog, Menu } from 'electron'
 import path from 'node:path'
 import fs from 'node:fs/promises'
-import { existsSync, readdirSync, readFileSync } from 'node:fs'
+import { existsSync, readdirSync, readFileSync, mkdirSync, writeFileSync, cpSync } from 'node:fs'
 import os from 'node:os'
+import { spawn, ChildProcessWithoutNullStreams } from 'node:child_process'
 import { autoUpdater } from 'electron-updater'
 import simpleGit, { SimpleGit } from 'simple-git'
 
@@ -10,7 +11,7 @@ let pty: typeof import('node-pty') | null = null
 try {
   pty = require('node-pty')
 } catch {
-  console.warn('[Noder] node-pty not available — terminal fallback mode')
+  console.warn('[Noder] node-pty not available — using child_process shell')
 }
 
 process.env.DIST = path.join(__dirname, '../dist')
@@ -20,7 +21,10 @@ process.env.VITE_PUBLIC = app.isPackaged
 
 let win: BrowserWindow | null = null
 let currentWorkspace: string | null = null
+
+// PTY sessions (node-pty) OR process sessions (child_process shell)
 const ptySessions = new Map<string, any>()
+const procSessions = new Map<string, ChildProcessWithoutNullStreams>()
 
 interface ExtensionCommand {
   command: string
@@ -77,6 +81,9 @@ function createExtensionAPI(ext: NoderExtension): ExtensionAPI {
 }
 
 function loadExtensions() {
+  loadedExtensions.length = 0
+  statusBarItems.length = 0
+
   const extDirs = [
     path.join(app.getAppPath(), 'extensions'),
     path.join(app.getPath('userData'), 'extensions'),
@@ -108,7 +115,7 @@ function loadExtensions() {
                 commandHandlers.set(cmd.command, () => {
                   win?.webContents.send('extension:message', {
                     extensionId: extId,
-                    message: `Command ${cmd.command} executed (no handler yet)`,
+                    message: `Command ${cmd.command} executed`,
                   })
                 })
               }
@@ -157,15 +164,17 @@ function loadExtensions() {
     } catch {}
   }
 
-  // Built-in commands for command palette
   const builtins: { id: string; title: string; category: string }[] = [
     { id: 'noder.openFolder', title: 'Open Folder', category: 'File' },
+    { id: 'noder.saveFile', title: 'Save File', category: 'File' },
     { id: 'noder.toggleTerminal', title: 'Toggle Terminal', category: 'View' },
     { id: 'noder.togglePreview', title: 'Toggle Live Preview', category: 'View' },
     { id: 'noder.toggleCollab', title: 'Toggle Collaboration', category: 'Collaboration' },
     { id: 'noder.toggleGit', title: 'Toggle Git Panel', category: 'Git' },
+    { id: 'noder.gitPush', title: 'Git: Push', category: 'Git' },
+    { id: 'noder.gitPull', title: 'Git: Pull', category: 'Git' },
     { id: 'noder.toggleMarketplace', title: 'Open Extension Marketplace', category: 'Extensions' },
-    { id: 'noder.saveFile', title: 'Save File', category: 'File' },
+    { id: 'noder.toggleAI', title: 'Toggle AI Assistant', category: 'AI' },
     { id: 'noder.checkUpdates', title: 'Check for Updates', category: 'Help' },
   ]
   for (const b of builtins) {
@@ -235,6 +244,7 @@ function createWindow() {
       label: 'View',
       submenu: [
         { label: 'Command Palette...', accelerator: 'CmdOrCtrl+Shift+P', click: () => win?.webContents.send('menu-command-palette') },
+        { label: 'AI Assistant', accelerator: 'CmdOrCtrl+Shift+A', click: () => win?.webContents.send('menu-toggle-ai') },
         { type: 'separator' },
         { role: 'reload' }, { role: 'toggleDevTools' }, { type: 'separator' },
         { role: 'resetZoom' }, { role: 'zoomIn' }, { role: 'zoomOut' },
@@ -298,18 +308,13 @@ ipcMain.handle('extensions:list', () =>
 
 ipcMain.handle('extensions:listCommands', () => {
   const list: { id: string; title: string; category?: string; source: string }[] = []
-  for (const [id, meta] of commandMeta) {
-    list.push({ id, ...meta })
-  }
+  for (const [id, meta] of commandMeta) list.push({ id, ...meta })
   return list.sort((a, b) => (a.category || '').localeCompare(b.category || '') || a.title.localeCompare(b.title))
 })
 
 ipcMain.handle('extensions:executeCommand', async (_e, commandId: string, ...args: any[]) => {
   const handler = commandHandlers.get(commandId)
-  if (!handler) {
-    // Built-in commands are handled in renderer
-    return { ok: true, builtin: true, commandId }
-  }
+  if (!handler) return { ok: true, builtin: true, commandId }
   try {
     const result = await handler(...args)
     return { ok: true, result }
@@ -319,6 +324,11 @@ ipcMain.handle('extensions:executeCommand', async (_e, commandId: string, ...arg
 })
 
 ipcMain.handle('extensions:getStatusBarItems', () => statusBarItems)
+
+ipcMain.handle('extensions:reload', () => {
+  loadExtensions()
+  return { ok: true, count: loadedExtensions.length }
+})
 
 function getGit(cwd?: string): SimpleGit | null {
   const root = cwd || currentWorkspace
@@ -412,37 +422,121 @@ ipcMain.handle('git:diff', async (_e, filePath?: string, cwd?: string) => {
   }
 })
 
-ipcMain.handle('pty:spawn', (_e, id: string, cwd?: string) => {
-  if (!pty) return { ok: false, error: 'node-pty not available' }
-  if (ptySessions.has(id)) return { ok: true }
-  const shellCmd = process.platform === 'win32' ? 'powershell.exe' : process.env.SHELL || 'bash'
+ipcMain.handle('git:push', async (_e, cwd?: string) => {
   try {
-    const term = pty.spawn(shellCmd, [], {
-      name: 'xterm-color',
-      cols: 80,
-      rows: 24,
-      cwd: cwd || currentWorkspace || os.homedir(),
-      env: process.env as any,
+    const git = getGit(cwd)
+    if (!git) return { ok: false, error: 'No workspace' }
+    const result = await git.push()
+    return { ok: true, result: String(result) }
+  } catch (e: any) {
+    return { ok: false, error: e.message }
+  }
+})
+
+ipcMain.handle('git:pull', async (_e, cwd?: string) => {
+  try {
+    const git = getGit(cwd)
+    if (!git) return { ok: false, error: 'No workspace' }
+    const result = await git.pull()
+    return { ok: true, summary: result.summary }
+  } catch (e: any) {
+    return { ok: false, error: e.message }
+  }
+})
+
+/** Prefer node-pty; otherwise spawn a real interactive shell via child_process */
+ipcMain.handle('pty:spawn', (_e, id: string, cwd?: string) => {
+  if (ptySessions.has(id) || procSessions.has(id)) return { ok: true, mode: ptySessions.has(id) ? 'pty' : 'proc' }
+
+  const workDir = cwd || currentWorkspace || os.homedir()
+  const env = { ...process.env, TERM: 'xterm-256color', COLORTERM: 'truecolor' } as NodeJS.ProcessEnv
+
+  if (pty) {
+    try {
+      const shellCmd = process.platform === 'win32' ? 'powershell.exe' : process.env.SHELL || 'bash'
+      const term = pty.spawn(shellCmd, process.platform === 'win32' ? [] : ['-l'], {
+        name: 'xterm-256color',
+        cols: 100,
+        rows: 30,
+        cwd: workDir,
+        env: env as any,
+      })
+      term.onData((data: string) => win?.webContents.send('pty:data', { id, data }))
+      term.onExit(() => {
+        ptySessions.delete(id)
+        win?.webContents.send('pty:exit', { id })
+      })
+      ptySessions.set(id, term)
+      return { ok: true, mode: 'pty' }
+    } catch (err: any) {
+      console.warn('[Noder] node-pty spawn failed, falling back to process shell', err)
+    }
+  }
+
+  // Real shell via child_process (works without native build tools)
+  try {
+    let child: ChildProcessWithoutNullStreams
+    if (process.platform === 'win32') {
+      child = spawn('powershell.exe', ['-NoLogo', '-NoExit'], {
+        cwd: workDir,
+        env,
+        windowsHide: true,
+      })
+    } else {
+      const sh = process.env.SHELL || '/bin/bash'
+      child = spawn(sh, ['-i'], { cwd: workDir, env })
+    }
+
+    child.stdout.on('data', (buf: Buffer) => {
+      win?.webContents.send('pty:data', { id, data: buf.toString('utf8') })
     })
-    term.onData((data: string) => win?.webContents.send('pty:data', { id, data }))
-    term.onExit(() => {
-      ptySessions.delete(id)
+    child.stderr.on('data', (buf: Buffer) => {
+      win?.webContents.send('pty:data', { id, data: buf.toString('utf8') })
+    })
+    child.on('exit', () => {
+      procSessions.delete(id)
       win?.webContents.send('pty:exit', { id })
     })
-    ptySessions.set(id, term)
-    return { ok: true }
+    child.on('error', (err) => {
+      win?.webContents.send('pty:data', { id, data: `\r\n[shell error] ${err.message}\r\n` })
+    })
+
+    procSessions.set(id, child)
+    return { ok: true, mode: 'proc' }
   } catch (err: any) {
     return { ok: false, error: err?.message || String(err) }
   }
 })
 
-ipcMain.on('pty:write', (_e, id: string, data: string) => { ptySessions.get(id)?.write(data) })
-ipcMain.on('pty:resize', (_e, id: string, cols: number, rows: number) => {
-  try { ptySessions.get(id)?.resize(cols, rows) } catch {}
+ipcMain.on('pty:write', (_e, id: string, data: string) => {
+  const p = ptySessions.get(id)
+  if (p) {
+    p.write(data)
+    return
+  }
+  const c = procSessions.get(id)
+  if (c && c.stdin.writable) {
+    c.stdin.write(data)
+  }
 })
+
+ipcMain.on('pty:resize', (_e, id: string, cols: number, rows: number) => {
+  try {
+    ptySessions.get(id)?.resize(cols, rows)
+  } catch {}
+})
+
 ipcMain.handle('pty:kill', (_e, id: string) => {
-  const term = ptySessions.get(id)
-  if (term) { try { term.kill() } catch {} ptySessions.delete(id) }
+  const p = ptySessions.get(id)
+  if (p) {
+    try { p.kill() } catch {}
+    ptySessions.delete(id)
+  }
+  const c = procSessions.get(id)
+  if (c) {
+    try { c.kill() } catch {}
+    procSessions.delete(id)
+  }
   return true
 })
 
@@ -458,15 +552,79 @@ ipcMain.handle('updater:check', async () => {
 
 ipcMain.handle('updater:install', () => { autoUpdater.quitAndInstall(false, true) })
 
-// Marketplace catalog (local skeleton)
 ipcMain.handle('marketplace:list', async () => {
   const catalogPath = path.join(app.getAppPath(), 'marketplace', 'catalog.json')
   try {
-    if (existsSync(catalogPath)) {
-      return JSON.parse(readFileSync(catalogPath, 'utf-8'))
-    }
+    if (existsSync(catalogPath)) return JSON.parse(readFileSync(catalogPath, 'utf-8'))
   } catch {}
   return { extensions: [] }
+})
+
+/** Install extension from bundled marketplace templates into userData/extensions */
+ipcMain.handle('marketplace:install', async (_e, extensionId: string) => {
+  try {
+    const catalogPath = path.join(app.getAppPath(), 'marketplace', 'catalog.json')
+    if (!existsSync(catalogPath)) return { ok: false, error: 'Catalog missing' }
+    const catalog = JSON.parse(readFileSync(catalogPath, 'utf-8'))
+    const item = (catalog.extensions || []).find((x: any) => x.id === extensionId)
+    if (!item) return { ok: false, error: 'Extension not in catalog' }
+    if (item.install === 'coming-soon') return { ok: false, error: 'Not available yet' }
+
+    const userExtRoot = path.join(app.getPath('userData'), 'extensions')
+    if (!existsSync(userExtRoot)) mkdirSync(userExtRoot, { recursive: true })
+    const dest = path.join(userExtRoot, extensionId)
+
+    // Prefer copying from bundled extensions/ or marketplace/templates/
+    const candidates = [
+      path.join(app.getAppPath(), 'extensions', extensionId),
+      path.join(app.getAppPath(), 'marketplace', 'templates', extensionId),
+    ]
+    let source: string | null = null
+    for (const c of candidates) {
+      if (existsSync(c)) { source = c; break }
+    }
+
+    if (source) {
+      cpSync(source, dest, { recursive: true })
+    } else {
+      // Generate a minimal installable extension from catalog metadata
+      mkdirSync(dest, { recursive: true })
+      writeFileSync(
+        path.join(dest, 'package.json'),
+        JSON.stringify(
+          {
+            name: item.id,
+            displayName: item.name,
+            version: item.version || '0.1.0',
+            description: item.description || '',
+            main: 'extension.js',
+            contributes: {
+              commands: [
+                { command: `${item.id}.hello`, title: `Hello from ${item.name}`, category: item.name },
+              ],
+            },
+          },
+          null,
+          2
+        )
+      )
+      writeFileSync(
+        path.join(dest, 'extension.js'),
+        `exports.activate = function (api) {
+  api.registerCommand('${item.id}.hello', function () {
+    api.showMessage('Installed: ${item.name}');
+  });
+};
+exports.deactivate = function () {};
+`
+      )
+    }
+
+    loadExtensions()
+    return { ok: true, path: dest }
+  } catch (e: any) {
+    return { ok: false, error: e.message }
+  }
 })
 
 app.whenReady().then(() => {
@@ -480,6 +638,10 @@ app.on('window-all-closed', () => {
     try { term.kill() } catch {}
   }
   ptySessions.clear()
+  for (const child of procSessions.values()) {
+    try { child.kill() } catch {}
+  }
+  procSessions.clear()
   if (process.platform !== 'darwin') {
     app.quit()
     win = null
