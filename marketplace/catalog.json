@@ -1,5 +1,5 @@
 {
-  "version": 1,
+  "version": 2,
   "updated": "2026-09-08",
   "extensions": [
     {
@@ -13,13 +13,33 @@
       "featured": true
     },
     {
+      "id": "noder-snippets",
+      "name": "Noder Snippets",
+      "version": "0.1.0",
+      "publisher": "JagX-JRILICENSE",
+      "description": "Handy snippet commands for scaffolding React and Node files.",
+      "categories": ["Snippets"],
+      "install": "local",
+      "featured": true
+    },
+    {
+      "id": "noder-todo-helper",
+      "name": "TODO Helper",
+      "version": "0.1.0",
+      "publisher": "JagX-JRILICENSE",
+      "description": "Scan workspace TODOs and show a quick command.",
+      "categories": ["Productivity"],
+      "install": "local",
+      "featured": false
+    },
+    {
       "id": "noder-theme-dark-plus",
       "name": "Dark+ Theme",
       "version": "0.1.0",
       "publisher": "JagX-JRILICENSE",
-      "description": "Placeholder theme extension (coming soon).",
+      "description": "Theme tokens extension (installable stub).",
       "categories": ["Themes"],
-      "install": "coming-soon",
+      "install": "local",
       "featured": false
     },
     {
@@ -27,20 +47,10 @@
       "name": "Git Lens Lite",
       "version": "0.1.0",
       "publisher": "JagX-JRILICENSE",
-      "description": "Enhanced blame and history UI (planned).",
+      "description": "Enhanced blame and history UI (coming soon).",
       "categories": ["SCM"],
       "install": "coming-soon",
       "featured": true
-    },
-    {
-      "id": "noder-prettier",
-      "name": "Prettier Formatter",
-      "version": "0.1.0",
-      "publisher": "community",
-      "description": "Format on save via Prettier (planned).",
-      "categories": ["Formatters"],
-      "install": "coming-soon",
-      "featured": false
     }
   ]
 }
