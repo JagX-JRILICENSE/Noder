@@ -1,14 +1,24 @@
 /**
- * Hello Noder – sample extension
- * This is a foundation example. Full activation API will be expanded.
+ * Hello Noder – sample extension using the deep Extension API
  */
 function activate(api) {
-  console.log('[hello-noder] Extension activated')
-  // Future: api.registerCommand('hello-noder.sayHello', () => { ... })
+  console.log('[hello-noder] Activated')
+
+  api.registerCommand('hello-noder.sayHello', () => {
+    api.showMessage('Hello from the Hello Noder extension! 👋')
+    return 'said-hello'
+  })
+
+  api.registerCommand('hello-noder.showWorkspace', () => {
+    const ws = api.getWorkspace()
+    const msg = ws ? `Current workspace: ${ws}` : 'No workspace open'
+    api.showMessage(msg)
+    return ws
+  })
 }
 
 function deactivate() {
-  console.log('[hello-noder] Extension deactivated')
+  console.log('[hello-noder] Deactivated')
 }
 
 module.exports = { activate, deactivate }
