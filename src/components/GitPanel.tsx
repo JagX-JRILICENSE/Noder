@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { GitBranch, RefreshCw, Plus, Minus, Check, FileCode } from 'lucide-react'
+import { GitBranch, RefreshCw, Plus, Minus, Check, FileCode, ArrowUp, ArrowDown } from 'lucide-react'
 import type { GitStatus } from '../types'
 
 interface Props {
@@ -21,6 +21,7 @@ export default function GitPanel({ workspace, visible, onClose, onStatusChange }
   const [message, setMessage] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [info, setInfo] = useState<string | null>(null)
 
   const refresh = useCallback(async () => {
     if (!workspace || !window.electronAPI?.gitStatus) {
@@ -82,9 +83,38 @@ export default function GitPanel({ workspace, visible, onClose, onStatusChange }
     setBusy(false)
     if (res?.ok) {
       setMessage('')
+      setInfo(`Committed ${res.commit || ''}`)
       await refresh()
     } else {
       setError(res?.error || 'Commit failed')
+    }
+  }
+
+  const push = async () => {
+    setBusy(true)
+    setError(null)
+    setInfo(null)
+    const res = await window.electronAPI?.gitPush?.(workspace || undefined)
+    setBusy(false)
+    if (res?.ok) {
+      setInfo('Push succeeded')
+      await refresh()
+    } else {
+      setError(res?.error || 'Push failed')
+    }
+  }
+
+  const pull = async () => {
+    setBusy(true)
+    setError(null)
+    setInfo(null)
+    const res = await window.electronAPI?.gitPull?.(workspace || undefined)
+    setBusy(false)
+    if (res?.ok) {
+      setInfo('Pull succeeded')
+      await refresh()
+    } else {
+      setError(res?.error || 'Pull failed')
     }
   }
 
@@ -97,6 +127,12 @@ export default function GitPanel({ workspace, visible, onClose, onStatusChange }
           {status?.current && <span className="git-branch-label">{status.current}</span>}
         </div>
         <div className="git-panel-actions">
+          <button className="icon-btn" title="Pull" onClick={pull} disabled={busy || !status}>
+            <ArrowDown size={14} />
+          </button>
+          <button className="icon-btn" title="Push" onClick={push} disabled={busy || !status}>
+            <ArrowUp size={14} />
+          </button>
           <button className="icon-btn" title="Refresh" onClick={refresh} disabled={loading}>
             <RefreshCw size={14} className={loading ? 'spin' : ''} />
           </button>
@@ -110,6 +146,21 @@ export default function GitPanel({ workspace, visible, onClose, onStatusChange }
         <div className="git-empty">{loading ? 'Loading…' : 'Not a Git repository (or Git unavailable).'}</div>
       ) : (
         <>
+          <div className="git-sync-bar">
+            <button className="btn-small" onClick={pull} disabled={busy}>
+              <ArrowDown size={12} /> Pull
+            </button>
+            <button className="btn-small" onClick={push} disabled={busy}>
+              <ArrowUp size={12} /> Push
+            </button>
+            {(status.ahead > 0 || status.behind > 0) && (
+              <span className="git-sync-meta">
+                {status.ahead > 0 && <span>↑{status.ahead}</span>}
+                {status.behind > 0 && <span> ↓{status.behind}</span>}
+              </span>
+            )}
+          </div>
+
           <div className="git-commit-box">
             <textarea
               placeholder="Commit message"
@@ -125,6 +176,7 @@ export default function GitPanel({ workspace, visible, onClose, onStatusChange }
               <Check size={14} /> Commit {staged.length > 0 ? `(${staged.length})` : ''}
             </button>
             {error && <div className="gh-error">{error}</div>}
+            {info && <div className="git-info">{info}</div>}
           </div>
 
           <div className="git-section">
@@ -167,14 +219,6 @@ export default function GitPanel({ workspace, visible, onClose, onStatusChange }
               </div>
             ))}
           </div>
-
-          {(status.ahead > 0 || status.behind > 0) && (
-            <div className="git-sync">
-              {status.ahead > 0 && <span>↑ {status.ahead} ahead</span>}
-              {status.behind > 0 && <span>↓ {status.behind} behind</span>}
-              {status.tracking && <span className="git-tracking">{status.tracking}</span>}
-            </div>
-          )}
         </>
       )}
     </div>
