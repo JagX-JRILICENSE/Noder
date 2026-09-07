@@ -1,11 +1,11 @@
 {
   "name": "hello-noder",
   "displayName": "Hello Noder",
-  "version": "0.1.0",
-  "description": "Sample extension that greets the user. Demonstrates the Noder extension foundation.",
+  "version": "0.2.0",
+  "description": "Sample extension demonstrating commands, status bar, and the Noder extension API.",
   "publisher": "JagX-JRILICENSE",
   "engines": {
-    "noder": "^0.3.0"
+    "noder": "^0.4.0"
   },
   "categories": ["Other"],
   "activationEvents": ["*"],
@@ -14,7 +14,20 @@
     "commands": [
       {
         "command": "hello-noder.sayHello",
-        "title": "Hello Noder: Say Hello"
+        "title": "Say Hello",
+        "category": "Hello Noder"
+      },
+      {
+        "command": "hello-noder.showWorkspace",
+        "title": "Show Workspace Path",
+        "category": "Hello Noder"
+      }
+    ],
+    "statusBar": [
+      {
+        "id": "hello-noder.status",
+        "text": "$(smile) Hello",
+        "command": "hello-noder.sayHello"
       }
     ]
   }
