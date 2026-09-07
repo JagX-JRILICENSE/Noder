@@ -1,6 +1,6 @@
 {
   "name": "noder",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "description": "Noder - Real-time collaborative code editor and app builder by JagX and JRILICENSE",
   "main": "dist-electron/main.js",
   "author": "JagX & JRILICENSE",
@@ -10,6 +10,9 @@
     "dev": "vite",
     "build": "vite build && electron-builder",
     "build:win": "vite build && electron-builder --win --publish never",
+    "build:mac": "vite build && electron-builder --mac --publish never",
+    "build:linux": "vite build && electron-builder --linux --publish never",
+    "build:all": "vite build && electron-builder -mwl --publish never",
     "build:dir": "vite build && electron-builder --dir",
     "preview": "vite preview",
     "electron:dev": "concurrently -k \"vite\" \"wait-on http://localhost:5173 && electron .\"",
@@ -63,7 +66,8 @@
       "dist/**/*",
       "dist-electron/**/*",
       "extensions/**/*",
-      "collab-server/**/*"
+      "collab-server/**/*",
+      "marketplace/**/*"
     ],
     "extraMetadata": {
       "main": "dist-electron/main.js"
@@ -80,29 +84,40 @@
     ],
     "win": {
       "target": [
-        {
-          "target": "nsis",
-          "arch": ["x64"]
-        },
-        {
-          "target": "portable",
-          "arch": ["x64"]
-        }
+        { "target": "nsis", "arch": ["x64"] },
+        { "target": "portable", "arch": ["x64"] }
       ],
       "icon": "assets/icon.ico",
       "publisherName": "JagX & JRILICENSE",
-      "artifactName": "${productName}-${version}-${arch}.${ext}",
+      "artifactName": "${productName}-${version}-win-${arch}.${ext}",
       "signAndEditExecutable": false
+    },
+    "mac": {
+      "target": [
+        { "target": "dmg", "arch": ["x64", "arm64"] },
+        { "target": "zip", "arch": ["x64", "arm64"] }
+      ],
+      "icon": "assets/icon.icns",
+      "category": "public.app-category.developer-tools",
+      "artifactName": "${productName}-${version}-mac-${arch}.${ext}",
+      "hardenedRuntime": false,
+      "gatekeeperAssess": false
+    },
+    "linux": {
+      "target": [
+        { "target": "AppImage", "arch": ["x64"] },
+        { "target": "deb", "arch": ["x64"] }
+      ],
+      "icon": "assets/logo.svg",
+      "category": "Development",
+      "artifactName": "${productName}-${version}-linux-${arch}.${ext}"
     },
     "nsis": {
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
-      "shortcutName": "Noder",
-      "installerIcon": "assets/icon.ico",
-      "uninstallerIcon": "assets/icon.ico",
-      "installerHeaderIcon": "assets/icon.ico"
+      "shortcutName": "Noder"
     },
     "portable": {
       "artifactName": "${productName}-${version}-portable.${ext}"
