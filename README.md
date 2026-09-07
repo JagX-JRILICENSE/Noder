@@ -3,21 +3,21 @@
 **Real-time collaborative code editor & app builder**  
 Created by **JagX** and **JRILICENSE**
 
-Noder is a modern development environment inspired by Visual Studio Code — with real-time collaboration, system terminal, GitHub integration, live preview, and Windows packaging.
+Noder is a modern development environment inspired by Visual Studio Code — with real-time collaboration, multi-terminal, Git status/blame, deep extension API, GitHub integration, live preview, and auto-updating Windows builds.
 
-## Features (v0.3.0)
+## Features (v0.4.0)
 
 - [x] **Monaco Editor** — Same engine as VS Code
-- [x] **Real-time Collaboration** — Yjs + y-monaco (public or your own server)
-- [x] **File Explorer** — Open folders, recursive tree, multi-tab editing
-- [x] **Full System Terminal** — node-pty + xterm.js (PowerShell / bash) with fallback
-- [x] **Live Preview** — Instant HTML / Markdown / JS / TS preview
-- [x] **GitHub Integration** — Login, list repos, create Issues & Pull Requests
-- [x] **Extension System Foundation** — Load extensions from `/extensions`
-- [x] **Custom Collab Server** — `npm run collab:server`
-- [x] **Windows Packaging** — NSIS installer + portable via electron-builder
-- [x] **GitHub Actions CI** — Automated Windows builds
-- [x] **Branding** — Logo SVG + icon generation instructions
+- [x] **Real-time Collaboration** — Yjs (public or self-hosted server)
+- [x] **File Explorer** — Recursive tree, multi-tab editing
+- [x] **Multi-terminal tabs** — Multiple node-pty sessions (+ / ✕)
+- [x] **Git status & blame** — Branch in status bar, toggle blame gutter
+- [x] **Deep Extension API** — Commands, status bar contributions, activate/deactivate
+- [x] **Auto-updater** — electron-updater via GitHub Releases
+- [x] **Live Preview** — HTML / Markdown / JS / TS
+- [x] **GitHub panel** — List repos, create Issues & PRs
+- [x] **Custom collab server** — `npm run collab:server`
+- [x] **Windows packaging + hardened CI**
 
 ## Quick Start
 
@@ -28,30 +28,45 @@ npm install
 npm run electron:dev
 ```
 
-### Full system terminal (node-pty)
-
-On Windows you need build tools (Visual Studio Build Tools / windows-build-tools). Then:
+### Full system terminal
 
 ```bash
-npm run rebuild
+npm run rebuild   # after installing build tools on Windows
 ```
 
-If node-pty fails to load, Noder automatically falls back to a simulated shell.
+Open terminal with **Ctrl+`**. Use **+** to open additional terminal tabs.
 
-### Custom collaboration server
+### Git blame
+
+Open a file inside a Git repo → click the **Git branch** icon in the title bar to toggle the blame gutter.
+
+### Extensions
+
+Place extensions under `extensions/<name>/` with a `package.json` and `extension.js`:
+
+```js
+function activate(api) {
+  api.registerCommand('my.cmd', () => {
+    api.showMessage('Hello!')
+  })
+}
+module.exports = { activate }
+```
+
+Sample extension: `extensions/hello-noder`.
+
+### Auto-updater
+
+Packaged builds check GitHub Releases automatically.  
+Help → Check for Updates, or click the green badge in the status bar when an update is ready.
+
+### Custom collab server
 
 ```bash
-npm run collab:server
-# Listening on ws://localhost:1234
+npm run collab:server   # ws://localhost:1234
 ```
 
-In Noder: open **Settings** (gear icon) → set Collaboration server URL to `ws://localhost:1234` → Save. Then enable collab and share the room ID.
-
-### GitHub
-
-1. Click **Login** and paste a Personal Access Token (classic) with `repo` scope.
-2. Click your username to open the GitHub panel.
-3. Browse repos, create Issues and Pull Requests directly from Noder.
+Settings (gear) → set server URL → enable collab.
 
 ### Build Windows app
 
@@ -59,24 +74,7 @@ In Noder: open **Settings** (gear icon) → set Collaboration server URL to `ws:
 npm run build:win
 ```
 
-Artifacts appear in `release/`. The GitHub Actions workflow also builds on every push to `main`.
-
-### App icon
-
-See [assets/README.md](assets/README.md) for generating `icon.ico` from the included logo.
-
-## Project structure
-
-```
-Noder/
-├── electron/          # Main process + preload (PTY, FS, extensions)
-├── src/               # React + Monaco UI
-│   ├── components/    # FileExplorer, Terminal, LivePreview, GitHubPanel
-├── extensions/       # Sample + user extensions
-├── collab-server/    # Custom Yjs WebSocket server
-├── assets/           # Logo + icon instructions
-├── .github/workflows # Windows CI
-```
+CI on `main` produces artifacts. Publish a GitHub Release with the built installers to enable auto-updates for users.
 
 ## License
 
