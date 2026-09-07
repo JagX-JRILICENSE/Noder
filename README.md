@@ -3,14 +3,14 @@
 **Real-time collaborative code editor & app builder**  
 Created by **JagX** and **JRILICENSE**
 
-## Features (v0.5.0)
+## Features (v0.6.0)
 
-- **Command Palette** — `Ctrl+Shift+P` (built-in + extension commands)
-- **Richer Git UI** — stage / unstage / commit, branch status, blame gutter
-- **Extension Marketplace skeleton** — local catalog + installed detection
-- **macOS / Linux / Windows builds** — electron-builder + multi-OS CI
-- **Real-time collaboration** — Yjs (public or `npm run collab:server`)
-- Multi-terminal tabs, Monaco editor, live preview, GitHub panel, auto-updater
+- **Working terminal** — node-pty when available, otherwise a real PowerShell/bash process shell
+- **BYOK AI Assistant** — OpenAI, Anthropic, Grok (xAI), OpenRouter, NVIDIA NIM (your API key)
+- **Marketplace install** — install extensions into the user extensions folder
+- **Git push / pull** — Source Control panel + command palette
+- **Command palette history** — recent commands first
+- Real-time collab (Yjs), multi-terminal tabs, live preview, auto-updater
 
 ## Quick start
 
@@ -21,41 +21,38 @@ npm install
 npm run electron:dev
 ```
 
-### Real-time collaboration
-
-1. Open a file
-2. Settings → set collab server (`wss://demos.yjs.dev` or `ws://localhost:1234`)
-3. Click **Users** icon (or Command Palette → Toggle Collaboration)
-4. Share the **room ID** from the status bar
-
-Local server:
+Optional full PTY terminal:
 
 ```bash
-npm run collab:server
+npm run rebuild   # needs build tools (VS on Windows)
 ```
 
-### Command Palette
+## AI (bring your own key)
 
-`Ctrl+Shift+P` (or View menu) — search and run commands.
+1. `Ctrl+Shift+A` or sparkle icon
+2. Choose provider: OpenAI · Anthropic · Grok · OpenRouter · NVIDIA
+3. Paste API key (stored only in localStorage on this machine)
+4. Chat with active file as context
 
-### Git
+## Terminal
 
-Open a Git repo folder → click branch icon for **Source Control** panel (stage/commit). Toggle blame with the **B** button.
+`Ctrl+`` opens the panel. Tabs support multiple shells. Without node-pty, Noder still runs a real system shell via `child_process`.
 
-### Extensions marketplace
+## Git
 
-Package icon → browse `marketplace/catalog.json`. Bundled: `extensions/hello-noder`.
+Open a repo folder → Git panel → stage / commit / **Pull** / **Push**.
 
-### Builds
+## Marketplace
+
+Package icon → **Install** on local catalog extensions.
+
+## Builds
 
 ```bash
-npm run build:win     # Windows
-npm run build:mac     # macOS
-npm run build:linux   # Linux
-npm run build:all     # all (on supported hosts)
+npm run build:win
+npm run build:mac
+npm run build:linux
 ```
-
-CI (`.github/workflows/build.yml`) builds **Windows, macOS, and Linux** on every push to `main`.
 
 ## License
 
@@ -63,4 +60,4 @@ MIT — See [LICENSE](LICENSE)
 
 ---
 
-Made with ❤️ by **JagX** & **JRILICENSE**
+Made with love by **JagX** & **JRILICENSE**
