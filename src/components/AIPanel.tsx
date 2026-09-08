@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
-import { Sparkles, Send, Settings2 } from 'lucide-react'
+import { Sparkles, Send, Settings2, FilePlus } from 'lucide-react'
 
 export type AIProvider = 'openai' | 'anthropic' | 'grok' | 'openrouter' | 'nvidia'
 
@@ -13,6 +13,7 @@ interface Props {
   onClose: () => void
   contextCode?: string
   contextFile?: string
+  onInsertCode?: (code: string) => void
 }
 
 const PROVIDERS: { id: AIProvider; label: string; models: string[]; baseHint: string }[] = [
@@ -35,6 +36,11 @@ function loadSettings() {
 
 function saveSettings(s: Record<string, any>) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(s))
+}
+
+function extractCode(text: string): string | null {
+  const m = text.match(/```(?:[\w.+-]+)?\n([\s\S]*?)```/)
+  return m ? m[1].trim() : null
 }
 
 async function callProvider(
@@ -106,7 +112,7 @@ async function callProvider(
   return data.choices?.[0]?.message?.content || ''
 }
 
-export default function AIPanel({ visible, onClose, contextCode, contextFile }: Props) {
+export default function AIPanel({ visible, onClose, contextCode, contextFile, onInsertCode }: Props) {
   const saved = loadSettings()
   const [provider, setProvider] = useState<AIProvider>(saved.provider || 'openrouter')
   const [apiKey, setApiKey] = useState(saved.keys?.[saved.provider || 'openrouter'] || '')
@@ -131,11 +137,7 @@ export default function AIPanel({ visible, onClose, contextCode, contextFile }: 
     const keys = { ...(s.keys || {}) }
     const p = next.provider || provider
     if (next.apiKey !== undefined) keys[p] = next.apiKey
-    saveSettings({
-      provider: p,
-      model: next.model || model,
-      keys,
-    })
+    saveSettings({ provider: p, model: next.model || model, keys })
   }
 
   const send = async () => {
@@ -147,7 +149,7 @@ export default function AIPanel({ visible, onClose, contextCode, contextFile }: 
     const system: Message = {
       role: 'system',
       content:
-        'You are Noder AI, a coding assistant inside a real-time collaborative IDE by JagX & JRILICENSE. Be concise, practical, and prefer working code. ' +
+        'You are Noder AI, a coding assistant inside a real-time collaborative IDE by JagX & JRILICENSE. Be concise, practical, and prefer working code in fenced blocks. ' +
         (contextFile ? `Active file: ${contextFile}. ` : '') +
         (contextCode ? `Current editor content (may be truncated):\n\n${contextCode.slice(0, 6000)}` : ''),
     }
@@ -183,7 +185,7 @@ export default function AIPanel({ visible, onClose, contextCode, contextFile }: 
 
       {showSettings && (
         <div className="ai-settings">
-          <label>Provider (BYOK — your key stays in this browser/app)</label>
+          <label>Provider (BYOK)</label>
           <select
             value={provider}
             onChange={(e) => {
@@ -200,47 +202,44 @@ export default function AIPanel({ visible, onClose, contextCode, contextFile }: 
               <option key={p.id} value={p.id}>{p.label}</option>
             ))}
           </select>
-
           <label>Model</label>
-          <select
-            value={model}
-            onChange={(e) => {
-              setModel(e.target.value)
-              persist({ model: e.target.value })
-            }}
-          >
+          <select value={model} onChange={(e) => { setModel(e.target.value); persist({ model: e.target.value }) }}>
             {prov.models.map((m) => (
               <option key={m} value={m}>{m}</option>
             ))}
           </select>
-
           <label>API Key ({prov.baseHint})</label>
           <input
             type="password"
             placeholder="Paste API key…"
             value={apiKey}
-            onChange={(e) => {
-              setApiKey(e.target.value)
-              persist({ apiKey: e.target.value })
-            }}
+            onChange={(e) => { setApiKey(e.target.value); persist({ apiKey: e.target.value }) }}
           />
-          <p className="ai-hint">Keys are stored only in localStorage on this machine. Never committed.</p>
+          <p className="ai-hint">Keys stay on this machine only (localStorage).</p>
         </div>
       )}
 
       <div className="ai-messages" ref={listRef}>
         {messages.length === 0 && (
           <div className="ai-empty">
-            Ask about your code, generate components, debug errors, or plan features.
+            Built-in multi-provider AI — generate, explain, refactor, or ship features faster than plain editors.
             {contextFile && <div className="ai-context">Context: {contextFile}</div>}
           </div>
         )}
-        {messages.map((m, i) => (
-          <div key={i} className={`ai-msg ${m.role}`}>
-            <div className="ai-msg-role">{m.role === 'user' ? 'You' : 'Noder AI'}</div>
-            <pre className="ai-msg-body">{m.content}</pre>
-          </div>
-        ))}
+        {messages.map((m, i) => {
+          const code = m.role === 'assistant' ? extractCode(m.content) : null
+          return (
+            <div key={i} className={`ai-msg ${m.role}`}>
+              <div className="ai-msg-role">{m.role === 'user' ? 'You' : 'Noder AI'}</div>
+              <pre className="ai-msg-body">{m.content}</pre>
+              {code && onInsertCode && (
+                <button className="btn-small ai-insert" onClick={() => onInsertCode(code)}>
+                  <FilePlus size={12} /> Insert code into editor
+                </button>
+              )}
+            </div>
+          )
+        })}
         {loading && <div className="ai-msg assistant"><div className="ai-msg-role">Noder AI</div><div className="ai-thinking">Thinking…</div></div>}
         {error && <div className="gh-error">{error}</div>}
       </div>
