@@ -20,9 +20,12 @@ import Marketplace from './components/Marketplace'
 import AIPanel from './components/AIPanel'
 import ActivityBar, { ActivityId } from './components/ActivityBar'
 import SearchPanel from './components/SearchPanel'
+import DiffViewer from './components/DiffViewer'
+import FindReplace from './components/FindReplace'
 import type { OpenTab, GitStatus, BlameLine } from './types'
 import './App.css'
 import './styles-activity.css'
+import './styles-git-extra.css'
 
 const DEFAULT_COLLAB = 'wss://demos.yjs.dev'
 
@@ -63,6 +66,12 @@ export default function App() {
   const [collabPeers, setCollabPeers] = useState(0)
   const [activity, setActivity] = useState<ActivityId>('explorer')
   const [zen, setZen] = useState(false)
+  const [showDiff, setShowDiff] = useState(false)
+  const [diffPath, setDiffPath] = useState<string | null>(null)
+  const [showFind, setShowFind] = useState(false)
+  const [recentFiles, setRecentFiles] = useState<{ path: string; name: string }[]>(() => {
+    try { return JSON.parse(localStorage.getItem('noder-recent') || '[]') } catch { return [] }
+  })
 
   const editorRef = useRef<editor.IStandaloneCodeEditor | null>(null)
   const ydocRef = useRef<Y.Doc | null>(null)
@@ -118,6 +127,24 @@ export default function App() {
     setTabs((prev) => [...prev, tab])
     setActiveTabId(tab.id)
     setStatusMsg(`Opened ${name}`)
+    setRecentFiles((prev) => {
+      const next = [{ path, name }, ...prev.filter((r) => r.path !== path)].slice(0, 12)
+      localStorage.setItem('noder-recent', JSON.stringify(next))
+      return next
+    })
+  }, [tabs])
+
+  const openFromContent = useCallback((path: string, name: string, content: string) => {
+    const existing = tabs.find((t) => t.path === path)
+    if (existing) {
+      setTabs((prev) => prev.map((t) => t.id === existing.id ? { ...t, content, isDirty: true } : t))
+      setActiveTabId(existing.id)
+      return
+    }
+    const tab: OpenTab = { id: uuidv4(), path, name, content, language: detectLanguage(name), isDirty: true }
+    setTabs((prev) => [...prev, tab])
+    setActiveTabId(tab.id)
+    setStatusMsg(`Editing ${name}`)
   }, [tabs])
 
   const saveCurrent = useCallback(async () => {
@@ -243,6 +270,14 @@ export default function App() {
       case 'noder.toggleFullscreen':
         await (window.electronAPI as any)?.toggleFullscreen?.()
         break
+      case 'noder.findReplace':
+        setShowFind(true)
+        break
+      case 'noder.showDiff':
+        setDiffPath(null)
+        setShowDiff(true)
+        setShowGitPanel(true)
+        break
       case 'noder.newGamePygame': {
         const res = await (window.electronAPI as any)?.scaffoldGame?.('snake', workspace || undefined)
         if (res?.ok) {
@@ -282,6 +317,10 @@ export default function App() {
       if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === 'z') {
         e.preventDefault()
         setZen((v) => !v)
+      }
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'h') {
+        e.preventDefault()
+        setShowFind(true)
       }
       if (e.key === 'F11') {
         e.preventDefault()
@@ -361,6 +400,16 @@ export default function App() {
               ))}
             </div>
             <div className="editor-wrapper">
+              {activeTab && (
+                <FindReplace
+                  visible={showFind}
+                  content={activeTab.content}
+                  onClose={() => setShowFind(false)}
+                  onReplace={(next) => {
+                    setTabs((prev) => prev.map((t) => t.id === activeTab.id ? { ...t, content: next, isDirty: true } : t))
+                  }}
+                />
+              )}
               {activeTab ? (
                 <div className="editor-with-blame">
                   {showBlame && blameLines.length > 0 && (
@@ -414,9 +463,17 @@ export default function App() {
                       <FolderOpen size={18} /> Open Folder
                     </button>
                   </div>
+                  {recentFiles.length > 0 && (
+                    <div className="recent-files">
+                      <div>Recent files</div>
+                      {recentFiles.slice(0, 6).map((r) => (
+                        <button key={r.path} onClick={() => openFile(r.path, r.name)}>{r.name}</button>
+                      ))}
+                    </div>
+                  )}
                   <ul className="welcome-features">
+                    <li><strong>GitHub</strong> — clone, edit, commit & push</li>
                     <li><strong>FREE AI</strong> — OpenRouter / NVIDIA</li>
-                    <li><strong>Real games</strong> — Pygame desktop</li>
                     <li><strong>Live collab</strong> — multiplayer</li>
                     <li><strong>Real terminal</strong> — PowerShell</li>
                   </ul>
@@ -426,8 +483,31 @@ export default function App() {
           </div>
 
           <LivePreview content={activeTab?.content || ''} language={activeTab?.language || 'plaintext'} visible={showPreview} />
-          <GitHubPanel token={githubToken} user={githubUser} visible={showGhPanel} onClose={() => setShowGhPanel(false)} />
-          <GitPanel workspace={workspace} visible={showGitPanel} onClose={() => setShowGitPanel(false)} onStatusChange={setGitStatus} />
+          <GitHubPanel
+            token={githubToken}
+            user={githubUser}
+            visible={showGhPanel}
+            onClose={() => setShowGhPanel(false)}
+            workspace={workspace}
+            onOpenContent={openFromContent}
+            onCloned={(folder) => { setWorkspace(folder); setStatusMsg('Cloned: ' + folder); setShowGitPanel(true) }}
+            onStatus={setStatusMsg}
+          />
+          <GitPanel
+            workspace={workspace}
+            visible={showGitPanel}
+            onClose={() => setShowGitPanel(false)}
+            onStatusChange={setGitStatus}
+            onOpenFile={openFile}
+            onShowDiff={(p) => { setDiffPath(p); setShowDiff(true) }}
+          />
+          <DiffViewer
+            workspace={workspace}
+            filePath={diffPath}
+            visible={showDiff}
+            onClose={() => setShowDiff(false)}
+            onOpenFile={openFile}
+          />
           <Marketplace visible={showMarketplace} onClose={() => setShowMarketplace(false)} />
           <AIPanel
             visible={showAI}
@@ -458,7 +538,7 @@ export default function App() {
           </span>
         )}
         {activeTab && <><span>{activeTab.language}</span><span>UTF-8</span></>}
-        <span className="right">Noder v0.7.1 · JagX & JRILICENSE</span>
+        <span className="right">Noder v0.7.2 · JagX & JRILICENSE</span>
       </footer>
 
       <CommandPalette open={showPalette} onClose={() => setShowPalette(false)} onExecute={runCommand} />
