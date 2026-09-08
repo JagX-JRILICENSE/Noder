@@ -41,3 +41,15 @@
   padding: 4px 0; cursor: pointer; font-size: 12px;
 }
 .recent-files button:hover { color: #fff; }
+
+.ai-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.ai-applied {
+  display: flex; align-items: center; gap: 6px;
+  margin: 8px 12px; padding: 8px 10px;
+  background: #163a2a; color: #89d185; border-radius: 6px; font-size: 12px;
+}
+.ai-check {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 12px; color: #ccc; margin-top: 8px;
+}
+.ai-check input { accent-color: #00d4aa; }
