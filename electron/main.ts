@@ -169,6 +169,8 @@ function loadExtensions() {
     { id: 'noder.toggleTerminal', title: 'Toggle Terminal', category: 'View' },
     { id: 'noder.togglePreview', title: 'Toggle Live Preview', category: 'View' },
     { id: 'noder.toggleFullscreen', title: 'Toggle Full Screen', category: 'View' },
+    { id: 'noder.findReplace', title: 'Find and Replace', category: 'Edit' },
+    { id: 'noder.showDiff', title: 'Show Git Diff', category: 'Git' },
     { id: 'noder.toggleCollab', title: 'Toggle Collaboration', category: 'Collaboration' },
     { id: 'noder.toggleGit', title: 'Toggle Git Panel', category: 'Git' },
     { id: 'noder.gitPush', title: 'Git: Push', category: 'Git' },
@@ -197,7 +199,6 @@ function setupAutoUpdater() {
 }
 
 function createWindow() {
-  // Remove the light native menu bar — in-app UI already has File/Edit/etc.
   Menu.setApplicationMenu(null)
 
   win = new BrowserWindow({
@@ -257,7 +258,11 @@ ipcMain.handle('fs:readFile', async (_e, filePath: string) => {
 })
 
 ipcMain.handle('fs:writeFile', async (_e, filePath: string, content: string) => {
-  try { await fs.writeFile(filePath, content, 'utf-8'); return true } catch { return false }
+  try {
+    await fs.mkdir(path.dirname(filePath), { recursive: true })
+    await fs.writeFile(filePath, content, 'utf-8')
+    return true
+  } catch { return false }
 })
 
 ipcMain.handle('shell:openExternal', async (_e, url: string) => { await shell.openExternal(url) })
@@ -402,6 +407,21 @@ ipcMain.handle('git:pull', async (_e, cwd?: string) => {
     if (!git) return { ok: false, error: 'No workspace' }
     const result = await git.pull()
     return { ok: true, summary: result.summary }
+  } catch (e: any) {
+    return { ok: false, error: e.message }
+  }
+})
+
+ipcMain.handle('git:clone', async (_e, repoUrl: string, targetDir: string) => {
+  try {
+    if (!repoUrl || !targetDir) return { ok: false, error: 'Missing url or folder' }
+    if (existsSync(targetDir)) return { ok: false, error: 'Folder already exists' }
+    const parent = path.dirname(targetDir)
+    if (!existsSync(parent)) mkdirSync(parent, { recursive: true })
+    const git = simpleGit(parent)
+    await git.clone(repoUrl, path.basename(targetDir))
+    currentWorkspace = targetDir
+    return { ok: true, path: targetDir }
   } catch (e: any) {
     return { ok: false, error: e.message }
   }
@@ -573,8 +593,7 @@ ipcMain.handle('marketplace:install', async (_e, extensionId: string) => {
     api.showMessage('Installed: ${item.name}');
   });
 };
-exports.deactivate = function () {};
-`
+exports.deactivate = function () {};\n`
       )
     }
 
