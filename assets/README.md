@@ -1,26 +1,34 @@
-# Noder Branding Assets
+# Noder brand assets
 
-- `logo.svg` — Official Noder logo (vector)
+## Wordmark & mark
 
-## Generating `icon.ico` for Windows
+| File | Use |
+|------|-----|
+| `logo.svg` | App mark — node network forming **N** + live pulse |
+| `wordmark.svg` | Full logotype **Noder** + LIVE badge |
 
-Electron-builder looks for `assets/icon.ico`. You can generate it from the SVG:
+## App icons (generated)
 
-### Option A – Online
-1. Open https://convertio.co/svg-ico/ or https://icoconvert.com/
-2. Upload `logo.svg`
-3. Download `icon.ico` and place it here as `assets/icon.ico`
+Run:
 
-### Option B – ImageMagick (CLI)
 ```bash
-# Requires ImageMagick
-magick convert assets/logo.svg -define icon:auto-resize=256,128,64,48,32,16 assets/icon.ico
+pip install pillow
+python scripts/generate-icons.py
 ```
 
-### Option C – electron-icon-builder
-```bash
-npm install -g electron-icon-builder
-electron-icon-builder --input=./assets/logo.svg --output=./assets
-```
+Produces:
 
-Until `icon.ico` exists, the Windows build still succeeds and uses a default Electron icon.
+- `icon.png` (512×512) — macOS / Linux / Electron
+- `icon.ico` (multi-size) — Windows installer & shortcut
+- `icon-16.png` … `icon-1024.png` — marketing / stores
+
+CI runs this automatically before packaging.
+
+## Design language
+
+- Background: deep graphite `#12161c`
+- Primary: electric cyan `#3ecfff`
+- Accent / live: mint `#00d4aa` → `#00ffb4`
+- Wordmark: clean geometric sans, bold weight, tight tracking
+
+Created for **JagX & JRILICENSE**.
