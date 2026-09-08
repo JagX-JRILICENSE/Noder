@@ -1,6 +1,6 @@
 {
   "name": "noder",
-  "version": "0.7.0",
+  "version": "0.7.1",
   "description": "Noder - Real-time collaborative code editor and app builder by JagX and JRILICENSE",
   "main": "dist-electron/main.js",
   "author": "JagX & JRILICENSE",
@@ -74,6 +74,7 @@
       "extensions/**/*",
       "collab-server/**/*",
       "marketplace/**/*",
+      "templates/**/*",
       "assets/logo.svg",
       "assets/wordmark.svg"
     ],
