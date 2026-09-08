@@ -1,12 +1,40 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" role="img" aria-label="Noder">
   <defs>
-    <linearGradient id="g" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#007acc"/>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#12161c"/>
+      <stop offset="100%" stop-color="#0a1018"/>
+    </linearGradient>
+    <linearGradient id="glow" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#007acc" stop-opacity="0.35"/>
+      <stop offset="100%" stop-color="#00d4aa" stop-opacity="0.2"/>
+    </linearGradient>
+    <linearGradient id="edge" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#3ecfff"/>
       <stop offset="100%" stop-color="#00d4aa"/>
     </linearGradient>
+    <filter id="soft" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="2" result="b"/>
+      <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
   </defs>
-  <rect width="128" height="128" rx="24" fill="#1e1e1e"/>
-  <rect x="8" y="8" width="112" height="112" rx="20" fill="url(#g)" opacity="0.15"/>
-  <text x="64" y="78" font-family="Segoe UI, system-ui, sans-serif" font-size="48" font-weight="700" fill="url(#g)" text-anchor="middle">N</text>
-  <circle cx="96" cy="32" r="8" fill="#00d4aa"/>
+  <!-- App tile -->
+  <rect width="512" height="512" rx="112" fill="url(#bg)"/>
+  <rect x="28" y="28" width="456" height="456" rx="96" fill="url(#glow)"/>
+  <!-- Network edges forming N -->
+  <g stroke="url(#edge)" stroke-width="22" stroke-linecap="round" fill="none" filter="url(#soft)">
+    <path d="M140 150 V362"/>
+    <path d="M140 150 L372 362"/>
+    <path d="M372 150 V362"/>
+    <path d="M140 362 L256 256" opacity="0.55"/>
+    <path d="M372 150 L256 256" opacity="0.55"/>
+  </g>
+  <!-- Nodes -->
+  <circle cx="140" cy="150" r="28" fill="#3ecfff"/>
+  <circle cx="140" cy="362" r="28" fill="#3ecfff"/>
+  <circle cx="372" cy="150" r="28" fill="#3ecfff"/>
+  <circle cx="372" cy="362" r="28" fill="#3ecfff"/>
+  <circle cx="256" cy="256" r="34" fill="#00d4aa"/>
+  <!-- Live collaboration pulse -->
+  <circle cx="400" cy="112" r="26" fill="#00ffb4"/>
+  <circle cx="400" cy="112" r="14" fill="#0a1018" opacity="0.25"/>
 </svg>
