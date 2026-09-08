@@ -22,7 +22,6 @@ process.env.VITE_PUBLIC = app.isPackaged
 let win: BrowserWindow | null = null
 let currentWorkspace: string | null = null
 
-// PTY sessions (node-pty) OR process sessions (child_process shell)
 const ptySessions = new Map<string, any>()
 const procSessions = new Map<string, ChildProcessWithoutNullStreams>()
 
@@ -169,12 +168,14 @@ function loadExtensions() {
     { id: 'noder.saveFile', title: 'Save File', category: 'File' },
     { id: 'noder.toggleTerminal', title: 'Toggle Terminal', category: 'View' },
     { id: 'noder.togglePreview', title: 'Toggle Live Preview', category: 'View' },
+    { id: 'noder.toggleFullscreen', title: 'Toggle Full Screen', category: 'View' },
     { id: 'noder.toggleCollab', title: 'Toggle Collaboration', category: 'Collaboration' },
     { id: 'noder.toggleGit', title: 'Toggle Git Panel', category: 'Git' },
     { id: 'noder.gitPush', title: 'Git: Push', category: 'Git' },
     { id: 'noder.gitPull', title: 'Git: Pull', category: 'Git' },
     { id: 'noder.toggleMarketplace', title: 'Open Extension Marketplace', category: 'Extensions' },
     { id: 'noder.toggleAI', title: 'Toggle AI Assistant', category: 'AI' },
+    { id: 'noder.newGamePygame', title: 'New Game: Pygame Snake (desktop)', category: 'Games' },
     { id: 'noder.checkUpdates', title: 'Check for Updates', category: 'Help' },
   ]
   for (const b of builtins) {
@@ -196,14 +197,21 @@ function setupAutoUpdater() {
 }
 
 function createWindow() {
+  // Remove the light native menu bar — in-app UI already has File/Edit/etc.
+  Menu.setApplicationMenu(null)
+
   win = new BrowserWindow({
     width: 1440,
     height: 920,
-    minWidth: 1100,
-    minHeight: 700,
+    minWidth: 900,
+    minHeight: 600,
     title: 'Noder',
     backgroundColor: '#1e1e1e',
     show: false,
+    autoHideMenuBar: true,
+    maximizable: true,
+    minimizable: true,
+    fullscreenable: true,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       nodeIntegration: false,
@@ -212,7 +220,10 @@ function createWindow() {
     },
   })
 
-  win.once('ready-to-show', () => win?.show())
+  win.once('ready-to-show', () => {
+    win?.show()
+    win?.maximize()
+  })
   win.webContents.setWindowOpenHandler(({ url }) => {
     shell.openExternal(url)
     return { action: 'deny' }
@@ -223,54 +234,6 @@ function createWindow() {
   } else {
     win.loadFile(path.join(process.env.DIST!, 'index.html'))
   }
-
-  const template: Electron.MenuItemConstructorOptions[] = [
-    {
-      label: 'File',
-      submenu: [
-        { label: 'Open Folder...', accelerator: 'CmdOrCtrl+O', click: () => win?.webContents.send('menu-open-folder') },
-        { type: 'separator' },
-        { role: 'quit' },
-      ],
-    },
-    {
-      label: 'Edit',
-      submenu: [
-        { role: 'undo' }, { role: 'redo' }, { type: 'separator' },
-        { role: 'cut' }, { role: 'copy' }, { role: 'paste' }, { role: 'selectAll' },
-      ],
-    },
-    {
-      label: 'View',
-      submenu: [
-        { label: 'Command Palette...', accelerator: 'CmdOrCtrl+Shift+P', click: () => win?.webContents.send('menu-command-palette') },
-        { label: 'AI Assistant', accelerator: 'CmdOrCtrl+Shift+A', click: () => win?.webContents.send('menu-toggle-ai') },
-        { type: 'separator' },
-        { role: 'reload' }, { role: 'toggleDevTools' }, { type: 'separator' },
-        { role: 'resetZoom' }, { role: 'zoomIn' }, { role: 'zoomOut' },
-        { type: 'separator' }, { role: 'togglefullscreen' },
-      ],
-    },
-    {
-      label: 'Terminal',
-      submenu: [
-        { label: 'New Terminal', accelerator: 'Ctrl+Shift+`', click: () => win?.webContents.send('menu-new-terminal') },
-      ],
-    },
-    {
-      label: 'Help',
-      submenu: [
-        {
-          label: 'Check for Updates...',
-          click: () => {
-            if (app.isPackaged) autoUpdater.checkForUpdates()
-            else win?.webContents.send('updater:status', { status: 'error', message: 'Updates only in packaged builds' })
-          },
-        },
-      ],
-    },
-  ]
-  Menu.setApplicationMenu(Menu.buildFromTemplate(template))
 }
 
 ipcMain.handle('dialog:openFolder', async () => {
@@ -444,7 +407,6 @@ ipcMain.handle('git:pull', async (_e, cwd?: string) => {
   }
 })
 
-/** Prefer node-pty; otherwise spawn a real interactive shell via child_process */
 ipcMain.handle('pty:spawn', (_e, id: string, cwd?: string) => {
   if (ptySessions.has(id) || procSessions.has(id)) return { ok: true, mode: ptySessions.has(id) ? 'pty' : 'proc' }
 
@@ -473,7 +435,6 @@ ipcMain.handle('pty:spawn', (_e, id: string, cwd?: string) => {
     }
   }
 
-  // Real shell via child_process (works without native build tools)
   try {
     let child: ChildProcessWithoutNullStreams
     if (process.platform === 'win32') {
@@ -560,7 +521,6 @@ ipcMain.handle('marketplace:list', async () => {
   return { extensions: [] }
 })
 
-/** Install extension from bundled marketplace templates into userData/extensions */
 ipcMain.handle('marketplace:install', async (_e, extensionId: string) => {
   try {
     const catalogPath = path.join(app.getAppPath(), 'marketplace', 'catalog.json')
@@ -574,7 +534,6 @@ ipcMain.handle('marketplace:install', async (_e, extensionId: string) => {
     if (!existsSync(userExtRoot)) mkdirSync(userExtRoot, { recursive: true })
     const dest = path.join(userExtRoot, extensionId)
 
-    // Prefer copying from bundled extensions/ or marketplace/templates/
     const candidates = [
       path.join(app.getAppPath(), 'extensions', extensionId),
       path.join(app.getAppPath(), 'marketplace', 'templates', extensionId),
@@ -587,7 +546,6 @@ ipcMain.handle('marketplace:install', async (_e, extensionId: string) => {
     if (source) {
       cpSync(source, dest, { recursive: true })
     } else {
-      // Generate a minimal installable extension from catalog metadata
       mkdirSync(dest, { recursive: true })
       writeFileSync(
         path.join(dest, 'package.json'),
@@ -625,6 +583,39 @@ exports.deactivate = function () {};
   } catch (e: any) {
     return { ok: false, error: e.message }
   }
+})
+
+ipcMain.handle('project:scaffoldGame', async (_e, kind: string, targetDir?: string) => {
+  try {
+    const destRoot = targetDir || currentWorkspace
+    if (!destRoot) return { ok: false, error: 'Open a folder first' }
+    const name = 'pygame-snake'
+    const dest = path.join(destRoot, name)
+    const srcCandidates = [
+      path.join(app.getAppPath(), 'templates', name),
+      path.join(process.cwd(), 'templates', name),
+    ]
+    let src: string | null = null
+    for (const c of srcCandidates) {
+      if (existsSync(c)) { src = c; break }
+    }
+    if (src) {
+      cpSync(src, dest, { recursive: true })
+    } else {
+      mkdirSync(dest, { recursive: true })
+      writeFileSync(path.join(dest, 'README.md'), '# Snake\n\n```\npip install pygame\npython main.py\n```\n')
+      writeFileSync(path.join(dest, 'main.py'), 'print("Copy full template from Noder repo templates/pygame-snake")\n')
+    }
+    return { ok: true, path: dest }
+  } catch (e: any) {
+    return { ok: false, error: e.message }
+  }
+})
+
+ipcMain.handle('window:toggleFullscreen', () => {
+  if (!win) return false
+  win.setFullScreen(!win.isFullScreen())
+  return win.isFullScreen()
 })
 
 app.whenReady().then(() => {
