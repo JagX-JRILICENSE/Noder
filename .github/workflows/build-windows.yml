@@ -21,10 +21,20 @@ jobs:
         with:
           node-version: '22'
 
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install Pillow for icons
+        run: pip install pillow
+
+      - name: Generate app icons
+        run: python scripts/generate-icons.py
+
       - name: Install dependencies
         run: npm install --no-audit --no-fund
         env:
-          # Optional native modules (node-pty) must not fail the install
           npm_config_optional: true
 
       - name: Build renderer
