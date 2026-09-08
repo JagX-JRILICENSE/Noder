@@ -32,6 +32,7 @@ function detectLanguage(filename: string): string {
     ts: 'typescript', tsx: 'typescript', js: 'javascript', jsx: 'javascript',
     json: 'json', html: 'html', css: 'css', md: 'markdown', py: 'python',
     rs: 'rust', go: 'go', java: 'java', c: 'c', cpp: 'cpp', yml: 'yaml', yaml: 'yaml',
+    svg: 'svg', lua: 'lua',
   }
   return map[ext] || 'plaintext'
 }
@@ -239,6 +240,19 @@ export default function App() {
         window.electronAPI?.checkForUpdates()
         setStatusMsg('Checking for updates…')
         break
+      case 'noder.toggleFullscreen':
+        await (window.electronAPI as any)?.toggleFullscreen?.()
+        break
+      case 'noder.newGamePygame': {
+        const res = await (window.electronAPI as any)?.scaffoldGame?.('snake', workspace || undefined)
+        if (res?.ok) {
+          setStatusMsg(`Game at ${res.path} — Terminal: pip install pygame && python main.py`)
+          setShowTerminal(true)
+        } else {
+          setStatusMsg(res?.error || 'Open a folder first, then run New Game')
+        }
+        break
+      }
       default: {
         const res = await window.electronAPI?.executeCommand(id)
         if (res && !res.ok) setStatusMsg(res.error || 'Command failed')
@@ -269,6 +283,10 @@ export default function App() {
         e.preventDefault()
         setZen((v) => !v)
       }
+      if (e.key === 'F11') {
+        e.preventDefault()
+        ;(window.electronAPI as any)?.toggleFullscreen?.()
+      }
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
@@ -295,7 +313,7 @@ export default function App() {
         </div>
         <div className="menu">
           <span onClick={openFolder}>File</span>
-          <span>Edit</span>
+          <span onClick={() => setShowPalette(true)}>Edit</span>
           <span onClick={() => setShowPalette(true)}>View</span>
           <span onClick={() => setShowTerminal((v) => !v)}>Terminal</span>
           <span onClick={() => setShowSettings(true)}>Help</span>
@@ -390,23 +408,17 @@ export default function App() {
                     </svg>
                     <h1 className="wordmark">Noder</h1>
                   </div>
-                  <p className="tagline">Real-time collaborative IDE by <strong>JagX</strong> & <strong>JRILICENSE</strong> — AI, terminal, Git, and live multiplayer built in.</p>
+                  <p className="tagline">Real-time collaborative IDE by <strong>JagX</strong> & <strong>JRILICENSE</strong></p>
                   <div className="welcome-actions">
                     <button className="btn-primary" onClick={openFolder}>
                       <FolderOpen size={18} /> Open Folder
                     </button>
                   </div>
                   <ul className="welcome-features">
-                    <li><strong>Live collab</strong> — multiplayer editing</li>
-                    <li><strong>BYOK AI</strong> — OpenAI, Grok, Claude…</li>
-                    <li><strong>Real terminal</strong> — system shell</li>
-                    <li><strong>Git push/pull</strong> — stage & ship</li>
-                  </ul>
-                  <ul className="shortcuts">
-                    <li><kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>P</kbd> Command Palette</li>
-                    <li><kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>A</kbd> AI Assistant</li>
-                    <li><kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>Z</kbd> Zen mode</li>
-                    <li><kbd>Ctrl</kbd>+<kbd>`</kbd> Terminal</li>
+                    <li><strong>FREE AI</strong> — OpenRouter / NVIDIA</li>
+                    <li><strong>Real games</strong> — Pygame desktop</li>
+                    <li><strong>Live collab</strong> — multiplayer</li>
+                    <li><strong>Real terminal</strong> — PowerShell</li>
                   </ul>
                 </div>
               )}
@@ -446,7 +458,7 @@ export default function App() {
           </span>
         )}
         {activeTab && <><span>{activeTab.language}</span><span>UTF-8</span></>}
-        <span className="right">Noder v0.7.0 · JagX & JRILICENSE</span>
+        <span className="right">Noder v0.7.1 · JagX & JRILICENSE</span>
       </footer>
 
       <CommandPalette open={showPalette} onClose={() => setShowPalette(false)} onExecute={runCommand} />
