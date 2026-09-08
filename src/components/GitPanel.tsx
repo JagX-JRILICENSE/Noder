@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { GitBranch, RefreshCw, Plus, Minus, Check, FileCode, ArrowUp, ArrowDown } from 'lucide-react'
+import { GitBranch, RefreshCw, Plus, Minus, Check, FileCode, ArrowUp, ArrowDown, Upload, GitCompare } from 'lucide-react'
 import type { GitStatus } from '../types'
 
 interface Props {
@@ -7,6 +7,8 @@ interface Props {
   visible: boolean
   onClose: () => void
   onStatusChange?: (status: GitStatus | null) => void
+  onOpenFile?: (path: string, name: string) => void
+  onShowDiff?: (path: string | null) => void
 }
 
 function fileState(f: { index: string; working_dir: string }) {
@@ -15,7 +17,13 @@ function fileState(f: { index: string; working_dir: string }) {
   return { staged, unstaged }
 }
 
-export default function GitPanel({ workspace, visible, onClose, onStatusChange }: Props) {
+function absPath(workspace: string, rel: string) {
+  const w = workspace.replace(/\\/g, '/')
+  const r = rel.replace(/\\/g, '/')
+  return r.startsWith(w) ? r : `${w}/${r}`
+}
+
+export default function GitPanel({ workspace, visible, onClose, onStatusChange, onOpenFile, onShowDiff }: Props) {
   const [status, setStatus] = useState<GitStatus | null>(null)
   const [loading, setLoading] = useState(false)
   const [message, setMessage] = useState('')
@@ -49,6 +57,12 @@ export default function GitPanel({ workspace, visible, onClose, onStatusChange }
 
   const staged = status?.files.filter((f) => fileState(f).staged) || []
   const unstaged = status?.files.filter((f) => fileState(f).unstaged || f.index === '?') || []
+
+  const openRel = (rel: string) => {
+    if (!workspace || !onOpenFile) return
+    const full = absPath(workspace, rel)
+    onOpenFile(full, rel.split(/[/\\]/).pop() || rel)
+  }
 
   const stage = async (path: string) => {
     setBusy(true)
@@ -97,10 +111,10 @@ export default function GitPanel({ workspace, visible, onClose, onStatusChange }
     const res = await window.electronAPI?.gitPush?.(workspace || undefined)
     setBusy(false)
     if (res?.ok) {
-      setInfo('Push succeeded')
+      setInfo('Pushed to GitHub')
       await refresh()
     } else {
-      setError(res?.error || 'Push failed')
+      setError(res?.error || 'Push failed — check remote & auth')
     }
   }
 
@@ -111,10 +125,39 @@ export default function GitPanel({ workspace, visible, onClose, onStatusChange }
     const res = await window.electronAPI?.gitPull?.(workspace || undefined)
     setBusy(false)
     if (res?.ok) {
-      setInfo('Pull succeeded')
+      setInfo('Pulled latest from GitHub')
       await refresh()
     } else {
       setError(res?.error || 'Pull failed')
+    }
+  }
+
+  /** Stage all → commit → push */
+  const commitAndPush = async () => {
+    if (!message.trim()) {
+      setError('Enter a commit message')
+      return
+    }
+    setBusy(true)
+    setError(null)
+    setInfo(null)
+    try {
+      if (unstaged.length) {
+        await window.electronAPI?.gitStage?.(unstaged.map((f) => f.path), workspace || undefined)
+      }
+      const c = await window.electronAPI?.gitCommit?.(message.trim(), workspace || undefined)
+      if (!c?.ok) {
+        setError(c?.error || 'Commit failed (stage changes first)')
+        setBusy(false)
+        return
+      }
+      setMessage('')
+      const p = await window.electronAPI?.gitPush?.(workspace || undefined)
+      if (p?.ok) setInfo('Committed & pushed to GitHub')
+      else setError(p?.error || 'Committed locally but push failed')
+      await refresh()
+    } finally {
+      setBusy(false)
     }
   }
 
@@ -127,6 +170,9 @@ export default function GitPanel({ workspace, visible, onClose, onStatusChange }
           {status?.current && <span className="git-branch-label">{status.current}</span>}
         </div>
         <div className="git-panel-actions">
+          <button className="icon-btn" title="Diff" onClick={() => onShowDiff?.(null)} disabled={!status}>
+            <GitCompare size={14} />
+          </button>
           <button className="icon-btn" title="Pull" onClick={pull} disabled={busy || !status}>
             <ArrowDown size={14} />
           </button>
@@ -141,9 +187,9 @@ export default function GitPanel({ workspace, visible, onClose, onStatusChange }
       </div>
 
       {!workspace ? (
-        <div className="git-empty">Open a folder to use Git.</div>
+        <div className="git-empty">Open or clone a folder to use Git + push to GitHub.</div>
       ) : !status ? (
-        <div className="git-empty">{loading ? 'Loading…' : 'Not a Git repository (or Git unavailable).'}</div>
+        <div className="git-empty">{loading ? 'Loading…' : 'Not a Git repository.'}</div>
       ) : (
         <>
           <div className="git-sync-bar">
@@ -152,6 +198,9 @@ export default function GitPanel({ workspace, visible, onClose, onStatusChange }
             </button>
             <button className="btn-small" onClick={push} disabled={busy}>
               <ArrowUp size={12} /> Push
+            </button>
+            <button className="btn-small" onClick={() => onShowDiff?.(null)} disabled={busy}>
+              <GitCompare size={12} /> Diff
             </button>
             {(status.ahead > 0 || status.behind > 0) && (
               <span className="git-sync-meta">
@@ -163,35 +212,45 @@ export default function GitPanel({ workspace, visible, onClose, onStatusChange }
 
           <div className="git-commit-box">
             <textarea
-              placeholder="Commit message"
+              placeholder="Commit message (required to push)"
               value={message}
               onChange={(e) => setMessage(e.target.value)}
               rows={3}
             />
-            <button
-              className="btn-primary git-commit-btn"
-              disabled={busy || staged.length === 0}
-              onClick={commit}
-            >
-              <Check size={14} /> Commit {staged.length > 0 ? `(${staged.length})` : ''}
-            </button>
+            <div className="git-commit-row">
+              <button
+                className="btn-primary git-commit-btn"
+                disabled={busy || (staged.length === 0 && unstaged.length === 0)}
+                onClick={commit}
+              >
+                <Check size={14} /> Commit
+              </button>
+              <button
+                className="btn-primary git-commit-btn"
+                disabled={busy || !message.trim()}
+                onClick={commitAndPush}
+                title="Stage all, commit, and push to GitHub"
+              >
+                <Upload size={14} /> Commit & Push
+              </button>
+            </div>
             {error && <div className="gh-error">{error}</div>}
             {info && <div className="git-info">{info}</div>}
           </div>
 
           <div className="git-section">
             <div className="git-section-header">
-              <span>Staged Changes ({staged.length})</span>
+              <span>Staged ({staged.length})</span>
             </div>
             {staged.length === 0 && <div className="git-empty-sm">No staged files</div>}
             {staged.map((f) => (
               <div key={`s-${f.path}`} className="git-file">
                 <FileCode size={14} />
-                <span className="git-file-name" title={f.path}>{f.path}</span>
-                <span className="git-file-badge staged">{f.index}</span>
-                <button title="Unstage" disabled={busy} onClick={() => unstage(f.path)}>
-                  <Minus size={12} />
-                </button>
+                <span className="git-file-name" title={f.path} onClick={() => openRel(f.path)} style={{ cursor: 'pointer' }}>
+                  {f.path}
+                </span>
+                <button title="Diff" onClick={() => onShowDiff?.(f.path)}><GitCompare size={12} /></button>
+                <button title="Unstage" disabled={busy} onClick={() => unstage(f.path)}><Minus size={12} /></button>
               </div>
             ))}
           </div>
@@ -206,16 +265,17 @@ export default function GitPanel({ workspace, visible, onClose, onStatusChange }
               )}
             </div>
             {unstaged.length === 0 && status.isClean && (
-              <div className="git-empty-sm">Working tree clean</div>
+              <div className="git-empty-sm">Working tree clean — nothing to push</div>
             )}
             {unstaged.map((f) => (
               <div key={`u-${f.path}`} className="git-file">
                 <FileCode size={14} />
-                <span className="git-file-name" title={f.path}>{f.path}</span>
+                <span className="git-file-name" title={f.path} onClick={() => openRel(f.path)} style={{ cursor: 'pointer' }}>
+                  {f.path}
+                </span>
                 <span className="git-file-badge">{f.working_dir === '?' ? 'U' : f.working_dir}</span>
-                <button title="Stage" disabled={busy} onClick={() => stage(f.path)}>
-                  <Plus size={12} />
-                </button>
+                <button title="Diff" onClick={() => onShowDiff?.(f.path)}><GitCompare size={12} /></button>
+                <button title="Stage" disabled={busy} onClick={() => stage(f.path)}><Plus size={12} /></button>
               </div>
             ))}
           </div>
