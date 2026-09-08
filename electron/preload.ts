@@ -68,4 +68,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   marketplaceList: () => ipcRenderer.invoke('marketplace:list'),
   marketplaceInstall: (extensionId: string) =>
     ipcRenderer.invoke('marketplace:install', extensionId),
+
+  scaffoldGame: (kind: string, targetDir?: string) =>
+    ipcRenderer.invoke('project:scaffoldGame', kind, targetDir),
+  toggleFullscreen: () => ipcRenderer.invoke('window:toggleFullscreen'),
 })
