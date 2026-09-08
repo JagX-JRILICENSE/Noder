@@ -472,8 +472,8 @@ export default function App() {
                     </div>
                   )}
                   <ul className="welcome-features">
+                    <li><strong>AI Agent</strong> — writes into editor & files</li>
                     <li><strong>GitHub</strong> — clone, edit, commit & push</li>
-                    <li><strong>FREE AI</strong> — OpenRouter / NVIDIA</li>
                     <li><strong>Live collab</strong> — multiplayer</li>
                     <li><strong>Real terminal</strong> — PowerShell</li>
                   </ul>
@@ -514,7 +514,38 @@ export default function App() {
             onClose={() => setShowAI(false)}
             contextCode={activeTab?.content}
             contextFile={activeTab?.name}
+            workspace={workspace}
+            onStatus={setStatusMsg}
             onInsertCode={insertAICode}
+            onWriteEditor={(code, filename) => {
+              if (activeTabId) {
+                setTabs((prev) => prev.map((t) => t.id === activeTabId ? { ...t, content: code, isDirty: true } : t))
+                setStatusMsg('AI wrote code into editor')
+              } else {
+                const name = filename || 'untitled.py'
+                const path = workspace ? `${workspace.replace(/\\/g, '/')}/${name}` : name
+                const tab: OpenTab = { id: uuidv4(), path, name, content: code, language: detectLanguage(name), isDirty: true }
+                setTabs((prev) => [...prev, tab])
+                setActiveTabId(tab.id)
+                setStatusMsg(`AI created ${name} in editor`)
+              }
+            }}
+            onWriteFile={async (rel, content) => {
+              if (!workspace || !window.electronAPI?.writeFile) {
+                const name = rel.split(/[/\\]/).pop() || rel
+                openFromContent(rel, name, content)
+                setStatusMsg(workspace ? `Could not write ${rel}` : `Opened ${name} — Open Folder to save on disk`)
+                return false
+              }
+              const full = `${workspace.replace(/\\/g, '/')}/${rel.replace(/^[/\\]+/, '')}`
+              const ok = await window.electronAPI.writeFile(full, content)
+              if (ok) {
+                const name = rel.split(/[/\\]/).pop() || rel
+                openFromContent(full, name, content)
+                setStatusMsg(`AI wrote ${rel}`)
+              }
+              return !!ok
+            }}
           />
         </div>
       </div>
@@ -538,7 +569,7 @@ export default function App() {
           </span>
         )}
         {activeTab && <><span>{activeTab.language}</span><span>UTF-8</span></>}
-        <span className="right">Noder v0.7.2 · JagX & JRILICENSE</span>
+        <span className="right">Noder v0.7.3 · JagX & JRILICENSE</span>
       </footer>
 
       <CommandPalette open={showPalette} onClose={() => setShowPalette(false)} onExecute={runCommand} />
