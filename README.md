@@ -1,16 +1,30 @@
 # Noder
 
-**Real-time collaborative code editor & app builder**  
-Created by **JagX** and **JRILICENSE**
+**Real-time collaborative IDE** by **JagX** & **JRILICENSE**
 
-## Features (v0.6.0)
+![Noder](assets/logo.svg)
 
-- **Working terminal** — node-pty when available, otherwise a real PowerShell/bash process shell
-- **BYOK AI Assistant** — OpenAI, Anthropic, Grok (xAI), OpenRouter, NVIDIA NIM (your API key)
-- **Marketplace install** — install extensions into the user extensions folder
-- **Git push / pull** — Source Control panel + command palette
-- **Command palette history** — recent commands first
-- Real-time collab (Yjs), multi-terminal tabs, live preview, auto-updater
+## Brand
+
+- **Mark** — network nodes forming **N** + live pulse (`assets/logo.svg`)
+- **Wordmark** — **Noder** + LIVE (`assets/wordmark.svg`)
+- **App icons** — generated for Windows / macOS / Linux:
+
+```bash
+pip install pillow
+npm run generate:icons   # → assets/icon.png + icon.ico
+```
+
+## Why Noder (vs plain editors)
+
+| Capability | Noder |
+|------------|--------|
+| Real-time collab | Built-in (Yjs), not an extra install |
+| AI | Multi-provider BYOK (OpenAI, Anthropic, Grok, OpenRouter, NVIDIA) + **Insert into editor** |
+| Terminal | Real system shell (node-pty or process shell) |
+| Git | Stage / commit / **push / pull** + blame |
+| Marketplace | Install extensions locally |
+| UX | Activity bar, workspace search, zen mode, command palette history |
 
 ## Quick start
 
@@ -21,43 +35,19 @@ npm install
 npm run electron:dev
 ```
 
-Optional full PTY terminal:
+## Shortcuts
+
+- `Ctrl+Shift+P` Command Palette
+- `Ctrl+Shift+A` AI Assistant
+- `Ctrl+K Z` Zen mode (toggle via palette: View)
+- `Ctrl+`` Terminal
+
+## Build
 
 ```bash
-npm run rebuild   # needs build tools (VS on Windows)
-```
-
-## AI (bring your own key)
-
-1. `Ctrl+Shift+A` or sparkle icon
-2. Choose provider: OpenAI · Anthropic · Grok · OpenRouter · NVIDIA
-3. Paste API key (stored only in localStorage on this machine)
-4. Chat with active file as context
-
-## Terminal
-
-`Ctrl+`` opens the panel. Tabs support multiple shells. Without node-pty, Noder still runs a real system shell via `child_process`.
-
-## Git
-
-Open a repo folder → Git panel → stage / commit / **Pull** / **Push**.
-
-## Marketplace
-
-Package icon → **Install** on local catalog extensions.
-
-## Builds
-
-```bash
-npm run build:win
-npm run build:mac
-npm run build:linux
+npm run build:win   # generates icons then packages
 ```
 
 ## License
 
-MIT — See [LICENSE](LICENSE)
-
----
-
-Made with love by **JagX** & **JRILICENSE**
+MIT
