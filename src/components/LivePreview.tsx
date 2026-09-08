@@ -16,43 +16,79 @@ export default function LivePreview({ content, language, visible }: Props) {
     const doc = iframe.contentDocument || iframe.contentWindow?.document
     if (!doc) return
 
+    const lang = (language || '').toLowerCase()
+    const trimmed = content.trim()
     let html = ''
 
-    if (language === 'html' || content.trim().startsWith('<!DOCTYPE') || content.trim().startsWith('<html')) {
+    if (lang === 'html' || trimmed.startsWith('<!DOCTYPE') || trimmed.startsWith('<html')) {
       html = content
-    } else if (language === 'markdown' || language === 'md') {
-      // Very basic markdown-to-html
-      html = `<!DOCTYPE html><html><head><style>
-        body { font-family: system-ui, sans-serif; padding: 20px; line-height: 1.6; background: #1e1e1e; color: #ccc; }
-        h1,h2,h3 { color: #fff; }
-        code { background: #2d2d2d; padding: 2px 6px; border-radius: 3px; }
-        pre { background: #2d2d2d; padding: 12px; border-radius: 6px; overflow: auto; }
-      </style></head><body>${simpleMarkdown(content)}</body></html>`
-    } else if (language === 'javascript' || language === 'js' || language === 'typescript' || language === 'ts') {
-      html = `<!DOCTYPE html>
-<html>
-<head>
-  <style>body{font-family:monospace;background:#1e1e1e;color:#ccc;padding:16px;}</style>
-</head>
+    } else if (lang === 'svg' || trimmed.startsWith('<svg')) {
+      html = `<!DOCTYPE html><html><head><style>body{margin:0;display:flex;align-items:center;justify-content:center;min-height:100vh;background:#1e1e1e}</style></head><body>${content}</body></html>`
+    } else if (lang === 'css') {
+      html = `<!DOCTYPE html><html><head><style>${content}</style></head>
 <body>
-  <pre id="out"></pre>
-  <script>
-    const out = document.getElementById('out');
-    const log = (...args) => { out.textContent += args.map(a => typeof a === 'object' ? JSON.stringify(a,null,2) : String(a)).join(' ') + '\\n'; };
-    console.log = log; console.error = log; console.warn = log;
-    try {
-      ${content}
-    } catch(e) {
-      out.textContent += 'Error: ' + e.message;
-    }
-  </script>
-</body>
-</html>`
+  <div class="card demo">
+    <h1>CSS Preview</h1>
+    <p>Sample content styled by your CSS.</p>
+    <button>Button</button>
+    <ul><li>Item one</li><li>Item two</li></ul>
+  </div>
+</body></html>`
+    } else if (lang === 'json') {
+      let pretty = content
+      try { pretty = JSON.stringify(JSON.parse(content), null, 2) } catch {}
+      html = shellPage(`<pre class="code">${escapeHtml(pretty)}</pre>`)
+    } else if (lang === 'markdown' || lang === 'md') {
+      html = shellPage(simpleMarkdown(content))
+    } else if (['javascript', 'js', 'typescript', 'ts', 'jsx', 'tsx'].includes(lang)) {
+      // Strip TS-ish types roughly for browser run
+      const runnable = content
+        .replace(/^import\s+.+;?$/gm, '')
+        .replace(/^export\s+/gm, '')
+      html = `<!DOCTYPE html>
+<html><head><meta charset="utf-8"/>
+<style>
+  body{font-family:Consolas,monospace;background:#1e1e1e;color:#ccc;margin:0;padding:12px}
+  #stage{border:1px solid #333;background:#111;margin-bottom:8px}
+  #out{white-space:pre-wrap;font-size:12px}
+  .err{color:#f48771}
+</style></head>
+<body>
+<canvas id="stage" width="480" height="320"></canvas>
+<pre id="out"></pre>
+<script>
+(function(){
+  const out = document.getElementById('out');
+  const canvas = document.getElementById('stage');
+  const ctx = canvas.getContext('2d');
+  const log = (...args) => { out.textContent += args.map(a => typeof a === 'object' ? JSON.stringify(a,null,2) : String(a)).join(' ') + '\\n'; };
+  console.log = log; console.error = (...a)=>{ out.innerHTML += '<span class="err">'+a.join(' ')+'</span>\\n'; }; console.warn = log;
+  window.canvas = canvas; window.ctx = ctx;
+  try {
+${runnable}
+  } catch(e) {
+    out.innerHTML += '<span class="err">Error: ' + e.message + '</span>';
+  }
+})();
+</script>
+</body></html>`
+    } else if (lang === 'python' || lang === 'py') {
+      html = shellPage(`
+        <h2>Python preview</h2>
+        <p>Noder shows your source here. Run real Python games in the <strong>Terminal</strong> (pygame templates supported).</p>
+        <pre class="code">${escapeHtml(content.slice(0, 8000))}</pre>
+        <p class="hint">Tip: File → New Game → Pygame, then in terminal: <code>pip install pygame</code> and <code>python main.py</code></p>
+      `)
+    } else if (lang === 'lua') {
+      html = shellPage(`<h2>Lua / Love2D</h2><pre class="code">${escapeHtml(content.slice(0, 8000))}</pre>
+        <p class="hint">Run with Love2D: <code>love .</code> in the project folder.</p>`)
     } else {
-      html = `<!DOCTYPE html><html><body style="font-family:system-ui;padding:20px;background:#1e1e1e;color:#ccc;">
-        <p>Live preview is available for HTML, Markdown, and JavaScript/TypeScript files.</p>
-        <pre style="background:#2d2d2d;padding:12px;border-radius:6px;overflow:auto;">${escapeHtml(content.slice(0, 2000))}</pre>
-      </body></html>`
+      // Generic: try as HTML fragment, else show source
+      if (trimmed.includes('<') && trimmed.includes('>')) {
+        html = `<!DOCTYPE html><html><head><style>body{font-family:system-ui;background:#1e1e1e;color:#ccc;padding:16px}</style></head><body>${content}</body></html>`
+      } else {
+        html = shellPage(`<h2>${escapeHtml(lang || 'file')} preview</h2><pre class="code">${escapeHtml(content.slice(0, 8000))}</pre>`)
+      }
     }
 
     doc.open()
@@ -64,7 +100,7 @@ export default function LivePreview({ content, language, visible }: Props) {
     <div className={`preview-panel ${visible ? 'visible' : 'hidden'}`}>
       <div className="preview-header">
         <span>LIVE PREVIEW</span>
-        <span className="preview-hint">Updates instantly</span>
+        <span className="preview-hint">{language || 'auto'}</span>
       </div>
       <iframe
         ref={iframeRef}
@@ -74,6 +110,17 @@ export default function LivePreview({ content, language, visible }: Props) {
       />
     </div>
   )
+}
+
+function shellPage(body: string) {
+  return `<!DOCTYPE html><html><head><meta charset="utf-8"/><style>
+    body{font-family:system-ui,sans-serif;padding:16px;line-height:1.55;background:#1e1e1e;color:#ccc;margin:0}
+    h1,h2,h3{color:#fff}
+    code,pre.code{background:#2d2d2d;border-radius:6px}
+    code{padding:2px 6px}
+    pre.code{padding:12px;overflow:auto;font-size:12px}
+    .hint{color:#858585;font-size:13px}
+  </style></head><body>${body}</body></html>`
 }
 
 function escapeHtml(str: string) {
