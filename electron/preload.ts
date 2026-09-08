@@ -58,6 +58,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.invoke('git:diff', filePath, cwd),
   gitPush: (cwd?: string) => ipcRenderer.invoke('git:push', cwd),
   gitPull: (cwd?: string) => ipcRenderer.invoke('git:pull', cwd),
+  gitClone: (repoUrl: string, targetDir: string) =>
+    ipcRenderer.invoke('git:clone', repoUrl, targetDir),
 
   checkForUpdates: () => ipcRenderer.invoke('updater:check'),
   installUpdate: () => ipcRenderer.invoke('updater:install'),
