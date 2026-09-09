@@ -8,6 +8,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
   readFile: (filePath: string) => ipcRenderer.invoke('fs:readFile', filePath),
   writeFile: (filePath: string, content: string) =>
     ipcRenderer.invoke('fs:writeFile', filePath, content),
+  mkdir: (dirPath: string) => ipcRenderer.invoke('fs:mkdir', dirPath),
+  deletePath: (targetPath: string) => ipcRenderer.invoke('fs:delete', targetPath),
+  renamePath: (from: string, to: string) => ipcRenderer.invoke('fs:rename', from, to),
+  saveFileDialog: (defaultName?: string) => ipcRenderer.invoke('dialog:saveFile', defaultName),
+  showItemInFolder: (targetPath: string) => ipcRenderer.invoke('shell:showItem', targetPath),
   openExternal: (url: string) => ipcRenderer.invoke('shell:openExternal', url),
   getVersion: () => ipcRenderer.invoke('app:getVersion'),
 
@@ -74,4 +79,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   scaffoldGame: (kind: string, targetDir?: string) =>
     ipcRenderer.invoke('project:scaffoldGame', kind, targetDir),
   toggleFullscreen: () => ipcRenderer.invoke('window:toggleFullscreen'),
+  windowMinimize: () => ipcRenderer.invoke('window:minimize'),
+  windowMaximize: () => ipcRenderer.invoke('window:maximize'),
+  windowClose: () => ipcRenderer.invoke('window:close'),
 })
