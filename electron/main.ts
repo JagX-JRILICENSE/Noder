@@ -179,6 +179,19 @@ function loadExtensions() {
     { id: 'noder.toggleAI', title: 'Toggle AI Assistant', category: 'AI' },
     { id: 'noder.newGamePygame', title: 'New Game: Pygame Snake (desktop)', category: 'Games' },
     { id: 'noder.checkUpdates', title: 'Check for Updates', category: 'Help' },
+    { id: 'noder.newFile', title: 'New File', category: 'File' },
+    { id: 'noder.newFolder', title: 'New Folder', category: 'File' },
+    { id: 'noder.saveAs', title: 'Save As…', category: 'File' },
+    { id: 'noder.closeAllTabs', title: 'Close All Tabs', category: 'File' },
+    { id: 'noder.gotoLine', title: 'Go to Line…', category: 'Edit' },
+    { id: 'noder.fontUp', title: 'Increase Font Size', category: 'View' },
+    { id: 'noder.fontDown', title: 'Decrease Font Size', category: 'View' },
+    { id: 'noder.toggleWordWrap', title: 'Toggle Word Wrap', category: 'View' },
+    { id: 'noder.toggleMinimap', title: 'Toggle Minimap', category: 'View' },
+    { id: 'noder.copyPath', title: 'Copy Active File Path', category: 'File' },
+    { id: 'noder.revealInOs', title: 'Reveal in File Explorer', category: 'File' },
+    { id: 'noder.detectLanguage', title: 'Re-detect Language', category: 'Edit' },
+    { id: 'noder.saveAndPush', title: 'Save, Commit & Push to GitHub', category: 'Git' },
   ]
   for (const b of builtins) {
     commandMeta.set(b.id, { title: b.title, category: b.category, source: 'noder' })
@@ -207,12 +220,14 @@ function createWindow() {
     minWidth: 900,
     minHeight: 600,
     title: 'Noder',
-    backgroundColor: '#1e1e1e',
+    backgroundColor: '#12161c',
     show: false,
+    frame: false,
     autoHideMenuBar: true,
     maximizable: true,
     minimizable: true,
     fullscreenable: true,
+    titleBarStyle: process.platform === 'darwin' ? 'hiddenInset' : undefined,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       nodeIntegration: false,
@@ -264,6 +279,50 @@ ipcMain.handle('fs:writeFile', async (_e, filePath: string, content: string) => 
     return true
   } catch { return false }
 })
+
+ipcMain.handle('fs:mkdir', async (_e, dirPath: string) => {
+  try {
+    await fs.mkdir(dirPath, { recursive: true })
+    return true
+  } catch { return false }
+})
+
+ipcMain.handle('fs:delete', async (_e, targetPath: string) => {
+  try {
+    await fs.rm(targetPath, { recursive: true, force: true })
+    return true
+  } catch { return false }
+})
+
+ipcMain.handle('fs:rename', async (_e, from: string, to: string) => {
+  try {
+    await fs.rename(from, to)
+    return true
+  } catch { return false }
+})
+
+ipcMain.handle('shell:showItem', async (_e, targetPath: string) => {
+  try {
+    shell.showItemInFolder(targetPath)
+    return true
+  } catch { return false }
+})
+
+ipcMain.handle('dialog:saveFile', async (_e, defaultName?: string) => {
+  const result = await dialog.showSaveDialog(win!, {
+    defaultPath: defaultName || 'untitled.txt',
+  })
+  if (result.canceled || !result.filePath) return null
+  return result.filePath
+})
+
+ipcMain.handle('window:minimize', () => { win?.minimize() })
+ipcMain.handle('window:maximize', () => {
+  if (!win) return
+  if (win.isMaximized()) win.unmaximize()
+  else win.maximize()
+})
+ipcMain.handle('window:close', () => { win?.close() })
 
 ipcMain.handle('shell:openExternal', async (_e, url: string) => { await shell.openExternal(url) })
 ipcMain.handle('app:getVersion', () => app.getVersion())
