@@ -10,64 +10,37 @@ export function detectLanguage(filename: string, content?: string): string {
     html: 'html', htm: 'html', xhtml: 'html',
     css: 'css', scss: 'scss', less: 'less',
     md: 'markdown', markdown: 'markdown',
-    py: 'python', pyw: 'python',
-    rs: 'rust',
-    go: 'go',
-    java: 'java',
-    c: 'c', h: 'c',
-    cpp: 'cpp', cc: 'cpp', cxx: 'cpp', hpp: 'cpp', hh: 'cpp',
-    cs: 'csharp',
-    php: 'php',
-    rb: 'ruby',
-    swift: 'swift',
-    kt: 'kotlin', kts: 'kotlin',
-    lua: 'lua',
+    py: 'python', pyw: 'python', pyi: 'python',
+    rs: 'rust', go: 'go', java: 'java',
+    c: 'c', h: 'c', cpp: 'cpp', cc: 'cpp', cxx: 'cpp', hpp: 'cpp',
+    cs: 'csharp', php: 'php', rb: 'ruby', swift: 'swift',
+    kt: 'kotlin', kts: 'kotlin', lua: 'lua',
     sh: 'shell', bash: 'shell', zsh: 'shell', ps1: 'powershell',
-    yml: 'yaml', yaml: 'yaml',
-    xml: 'xml', svg: 'xml',
-    sql: 'sql',
-    r: 'r',
-    dart: 'dart',
-    vue: 'html',
-    svelte: 'html',
-    toml: 'ini',
-    ini: 'ini', cfg: 'ini', conf: 'ini',
-    dockerfile: 'dockerfile',
-    makefile: 'plaintext',
+    yml: 'yaml', yaml: 'yaml', xml: 'xml', svg: 'xml', sql: 'sql',
+    dart: 'dart', vue: 'html', svelte: 'html',
+    toml: 'ini', ini: 'ini', dockerfile: 'dockerfile',
   }
 
   if (name === 'dockerfile' || name.endsWith('dockerfile')) return 'dockerfile'
   if (name === 'makefile' || name === 'gnumakefile') return 'plaintext'
-  if (ext && byExt[ext]) return byExt[ext]
+  if (name === 'pubspec.yaml' || name === 'pubspec.yml') return 'yaml'
+  if (name.endsWith('.tsx') || name.endsWith('.ts')) return 'typescript'
+  if (byExt[ext]) return byExt[ext]
 
-  if (content && content.trim()) {
-    const sample = content.slice(0, 4000)
-    if (/^#!/.test(sample)) {
-      if (/python/.test(sample)) return 'python'
-      if (/node|bash|sh/.test(sample)) return 'shell'
+  if (content) {
+    const head = content.slice(0, 800)
+    if (/^\s*<!DOCTYPE\s+html/i.test(head) || /^\s*<html/i.test(head)) return 'html'
+    if (/\bWidget\b|\bStatelessWidget\b|\bMaterialApp\b/.test(head)) return 'dart'
+    if (/from\s+['"]react['"]/.test(head)) {
+      return /\binterface\b|\btype\s+\w+\s*=/.test(head) ? 'typescript' : 'javascript'
     }
-    if (/\b(def|import|from)\s+\w+|print\s*\(/.test(sample) && /:\s*$/m.test(sample)) return 'python'
-    if (/\b(function|const|let|var|=>|export\s+default)\b/.test(sample)) {
-      if (/:\s*[A-Z]\w*[<>\[\]]?/.test(sample) || /interface\s+\w+/.test(sample)) return 'typescript'
-      return 'javascript'
-    }
-    if (/^\s*<(!DOCTYPE|html|\?xml)/i.test(sample) || /<\w+[\s>]/.test(sample) && /<\/\w+>/.test(sample)) {
-      if (/style\s*=|\.\w+\s*\{/.test(sample) && sample.includes('{')) return 'html'
-      return 'html'
-    }
-    if (/[{;]\s*$/m.test(sample) && /[.#]?[\w-]+\s*\{/.test(sample)) return 'css'
-    if (/^\s*[{\[]/.test(sample.trim()) && /"\w+"\s*:/.test(sample)) return 'json'
-    if (/^\s*#include\s*</.test(sample) || /\bint\s+main\s*\(/.test(sample)) return 'cpp'
-    if (/\bpackage\s+main\b|\bfunc\s+\w+\(/.test(sample)) return 'go'
-    if (/\bfn\s+\w+|let\s+mut\s+/.test(sample)) return 'rust'
-    if (/^\s*---\s*$/m.test(sample) || /^\w+:\s*.+$/m.test(sample) && !sample.includes('{')) return 'yaml'
   }
 
   return 'plaintext'
 }
 
 export const LANGUAGE_OPTIONS = [
-  'plaintext', 'javascript', 'typescript', 'python', 'html', 'css', 'json',
-  'markdown', 'cpp', 'c', 'csharp', 'java', 'go', 'rust', 'php', 'ruby',
-  'shell', 'powershell', 'yaml', 'xml', 'sql', 'lua', 'dockerfile', 'scss',
-] as const
+  'plaintext', 'typescript', 'javascript', 'json', 'html', 'css', 'scss', 'markdown',
+  'python', 'dart', 'rust', 'go', 'java', 'c', 'cpp', 'csharp', 'php', 'ruby',
+  'swift', 'kotlin', 'lua', 'shell', 'powershell', 'yaml', 'xml', 'sql', 'dockerfile',
+]
