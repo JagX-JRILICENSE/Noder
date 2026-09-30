@@ -1,0 +1,15 @@
+{
+  "name": "noder-theme-dark-plus",
+  "displayName": "Dark+ Theme",
+  "version": "1.0.0",
+  "description": "Classic VS Code Dark+ look for Noder. Free theme extension.",
+  "publisher": "JagX-JRILICENSE",
+  "main": "extension.js",
+  "categories": ["Themes"],
+  "contributes": {
+    "commands": [
+      { "command": "noder-theme-dark-plus.apply", "title": "Apply Dark+ Theme", "category": "Theme" }
+    ],
+    "themes": [{ "id": "dark-plus", "label": "Dark+" }]
+  }
+}

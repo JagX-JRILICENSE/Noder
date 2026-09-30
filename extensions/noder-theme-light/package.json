@@ -1,0 +1,14 @@
+{
+  "name": "noder-theme-light",
+  "displayName": "Light+ Theme",
+  "version": "1.0.0",
+  "description": "Clean light theme for Noder. Free theme extension.",
+  "publisher": "JagX-JRILICENSE",
+  "main": "extension.js",
+  "categories": ["Themes"],
+  "contributes": {
+    "commands": [
+      { "command": "noder-theme-light.apply", "title": "Apply Light+ Theme", "category": "Theme" }
+    ]
+  }
+}

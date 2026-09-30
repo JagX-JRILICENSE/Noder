@@ -1,0 +1,12 @@
+{
+  "name": "noder-flutter-tools",
+  "displayName": "Flutter Tools",
+  "version": "0.1.0",
+  "main": "extension.js",
+  "contributes": {
+    "commands": [
+      { "command": "noder-flutter-tools.pubGet", "title": "Flutter: pub get", "category": "Flutter" },
+      { "command": "noder-flutter-tools.runWeb", "title": "Flutter: run web-server :8080", "category": "Flutter" }
+    ]
+  }
+}

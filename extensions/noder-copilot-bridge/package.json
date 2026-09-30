@@ -1,0 +1,11 @@
+{
+  "name": "noder-copilot-bridge",
+  "displayName": "AI Agent Bridge",
+  "version": "0.1.0",
+  "main": "extension.js",
+  "contributes": {
+    "commands": [
+      { "command": "noder-copilot-bridge.build", "title": "Agent: Build feature", "category": "AI" }
+    ]
+  }
+}
