@@ -35,6 +35,7 @@ export interface GitHubRepo {
   language: string | null
   stargazers_count: number
   updated_at: string
+  clone_url?: string
 }
 
 export interface GitStatus {
@@ -66,6 +67,10 @@ declare global {
       readDir: (dirPath: string) => Promise<FileEntry[]>
       readFile: (filePath: string) => Promise<string | null>
       writeFile: (filePath: string, content: string) => Promise<boolean>
+      mkdir: (dirPath: string) => Promise<boolean>
+      shellExec: (command: string, cwd?: string) => Promise<{ ok: boolean; stdout: string; stderr: string; code: number }>
+      openImageDialog: () => Promise<string[] | null>
+      copyFile: (from: string, to: string) => Promise<boolean>
       openExternal: (url: string) => Promise<void>
       getVersion: () => Promise<string>
       listExtensions: () => Promise<NoderExtension[]>
@@ -92,6 +97,7 @@ declare global {
       gitDiff: (filePath?: string, cwd?: string) => Promise<string | null>
       gitPush: (cwd?: string) => Promise<{ ok: boolean; error?: string; result?: string }>
       gitPull: (cwd?: string) => Promise<{ ok: boolean; error?: string; summary?: any }>
+      gitClone: (repoUrl: string, targetDir: string) => Promise<{ ok: boolean; error?: string; path?: string }>
       checkForUpdates: () => Promise<{ ok: boolean; message?: string }>
       installUpdate: () => Promise<void>
       onUpdaterStatus: (cb: (payload: any) => void) => void
