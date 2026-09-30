@@ -1,7 +1,7 @@
 {
   "name": "noder",
-  "version": "0.8.0",
-  "description": "Noder - Real-time collaborative code editor and app builder by JagX and JRILICENSE",
+  "version": "0.9.8",
+  "description": "Noder - AI-first collaborative IDE by JagX & JRILICENSE. Editor, agent, previews, themes, Git, terminal.",
   "main": "dist-electron/main.js",
   "author": "JagX & JRILICENSE",
   "license": "MIT",
@@ -19,7 +19,11 @@
     "electron:dev": "concurrently -k \"vite\" \"wait-on http://localhost:5173 && electron .\"",
     "collab:server": "node collab-server/server.js",
     "postinstall": "node -e \"try{require('child_process').execSync('electron-builder install-app-deps',{stdio:'inherit'})}catch(e){console.warn('[noder] native rebuild skipped (optional)')}\"",
-    "rebuild": "electron-rebuild -f -w node-pty"
+    "rebuild": "electron-rebuild -f -w node-pty",
+    "ci:build": "python scripts/generate-icons.py && vite build && electron-builder --publish never",
+    "ci:build:win": "python scripts/generate-icons.py && vite build && electron-builder --win --x64 --publish never",
+    "ci:build:mac": "python scripts/generate-icons.py && vite build && electron-builder --mac --publish never",
+    "ci:build:linux": "python scripts/generate-icons.py && vite build && electron-builder --linux --x64 --publish never"
   },
   "dependencies": {
     "@monaco-editor/react": "^4.6.0",
@@ -76,7 +80,9 @@
       "marketplace/**/*",
       "templates/**/*",
       "assets/logo.svg",
-      "assets/wordmark.svg"
+      "assets/wordmark.svg",
+      "assets/icon.png",
+      "assets/icon.ico"
     ],
     "extraMetadata": {
       "main": "dist-electron/main.js"
@@ -133,6 +139,7 @@
     },
     "portable": {
       "artifactName": "${productName}-${version}-portable.${ext}"
-    }
+    },
+    "forceCodeSigning": false
   }
 }
