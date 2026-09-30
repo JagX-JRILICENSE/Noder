@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useCallback } from 'react'
+import { useEffect, useRef, useState, useCallback, forwardRef, useImperativeHandle } from 'react'
 import { Terminal as XTerm } from 'xterm'
 import { FitAddon } from 'xterm-addon-fit'
 import { WebLinksAddon } from 'xterm-addon-web-links'
@@ -20,17 +20,26 @@ interface SessionRuntime {
   mode: 'pty' | 'proc' | 'fallback'
 }
 
-export default function TerminalPanel({ visible, cwd }: Props) {
+export interface TerminalPanelHandle {
+  runCommand: (cmd: string) => Promise<string>
+  ensureVisibleSession: () => Promise<string | null>
+}
+
+const TerminalPanel = forwardRef<TerminalPanelHandle, Props>(function TerminalPanel({ visible, cwd }, ref) {
   const [sessions, setSessions] = useState<TerminalSession[]>([])
   const [activeId, setActiveId] = useState<string | null>(null)
   const runtimes = useRef<Map<string, SessionRuntime>>(new Map())
   const hostRef = useRef<HTMLDivElement>(null)
   const dataHandlerAttached = useRef(false)
+  const activeIdRef = useRef<string | null>(null)
+  const sessionsRef = useRef<TerminalSession[]>([])
+
+  useEffect(() => { activeIdRef.current = activeId }, [activeId])
+  useEffect(() => { sessionsRef.current = sessions }, [sessions])
 
   const createSession = useCallback(async () => {
     const id = uuidv4()
-    const title = `Terminal ${sessions.length + 1}`
-
+    const title = `Terminal ${sessionsRef.current.length + 1}`
     const container = document.createElement('div')
     container.style.height = '100%'
     container.style.width = '100%'
@@ -48,7 +57,7 @@ export default function TerminalPanel({ visible, cwd }: Props) {
       cursorBlink: true,
       convertEol: true,
       allowProposedApi: true,
-      scrollback: 5000,
+      scrollback: 8000,
     })
 
     const fit = new FitAddon()
@@ -72,14 +81,12 @@ export default function TerminalPanel({ visible, cwd }: Props) {
     }
 
     if (mode === 'fallback') {
-      term.writeln('\x1b[1;31mShell unavailable in this environment.\x1b[0m\r\n')
+      term.writeln('\x1b[1;31mShell unavailable — agent will use shellExec fallback.\x1b[0m\r\n')
       term.write('$ ')
       let line = ''
       term.onData((data) => {
         if (data === '\r') {
           term.write('\r\n')
-          if (line.trim() === 'clear') term.clear()
-          else if (line.trim()) term.writeln(`\x1b[90m(no shell) ${line}\x1b[0m`)
           line = ''
           term.write('$ ')
         } else if (data === '\u007f') {
@@ -95,29 +102,24 @@ export default function TerminalPanel({ visible, cwd }: Props) {
     }
 
     runtimes.current.set(id, { id, term, fit, container, mode })
-
     if (hostRef.current) hostRef.current.appendChild(container)
-
     setSessions((prev) => [...prev, { id, title }])
     setActiveId(id)
-
     setTimeout(() => {
       container.style.display = 'block'
       fit.fit()
-      if (mode === 'pty') {
+      if (mode === 'pty' || mode === 'proc') {
         const dims = fit.proposeDimensions()
         if (dims) window.electronAPI?.ptyResize(id, dims.cols, dims.rows)
       }
       term.focus()
     }, 30)
-
     return id
-  }, [sessions.length, cwd])
+  }, [cwd])
 
   useEffect(() => {
     if (dataHandlerAttached.current || !window.electronAPI) return
     dataHandlerAttached.current = true
-
     window.electronAPI.onPtyData(({ id, data }) => {
       const rt = runtimes.current.get(id)
       if (rt) rt.term.write(data)
@@ -130,7 +132,7 @@ export default function TerminalPanel({ visible, cwd }: Props) {
 
   useEffect(() => {
     if (visible && sessions.length === 0) createSession()
-  }, [visible])
+  }, [visible]) // eslint-disable-line
 
   useEffect(() => {
     runtimes.current.forEach((rt, id) => {
@@ -138,7 +140,7 @@ export default function TerminalPanel({ visible, cwd }: Props) {
       if (id === activeId) {
         setTimeout(() => {
           rt.fit.fit()
-          if (rt.mode === 'pty') {
+          if (rt.mode === 'pty' || rt.mode === 'proc') {
             const dims = rt.fit.proposeDimensions()
             if (dims) window.electronAPI?.ptyResize(id, dims.cols, dims.rows)
           }
@@ -154,7 +156,7 @@ export default function TerminalPanel({ visible, cwd }: Props) {
     if (!rt) return
     setTimeout(() => {
       rt.fit.fit()
-      if (rt.mode === 'pty') {
+      if (rt.mode === 'pty' || rt.mode === 'proc') {
         const dims = rt.fit.proposeDimensions()
         if (dims) window.electronAPI?.ptyResize(activeId, dims.cols, dims.rows)
       }
@@ -176,10 +178,45 @@ export default function TerminalPanel({ visible, cwd }: Props) {
     })
   }
 
+  useImperativeHandle(ref, () => ({
+    async ensureVisibleSession() {
+      let id = activeIdRef.current
+      if (!id || !runtimes.current.has(id)) {
+        id = await createSession()
+      }
+      return id
+    },
+    async runCommand(cmd: string) {
+      let id = activeIdRef.current
+      if (!id || !runtimes.current.has(id)) {
+        id = await createSession()
+      }
+      const rt = runtimes.current.get(id!)
+      if (!rt) {
+        const res = await (window.electronAPI as any)?.shellExec?.(cmd, cwd || undefined)
+        return res ? `${res.stdout || ''}${res.stderr ? '\n' + res.stderr : ''}` : 'no shell'
+      }
+      rt.term.writeln(`\r\n\x1b[1;36m▸ agent: ${cmd}\x1b[0m`)
+      if ((rt.mode === 'pty' || rt.mode === 'proc') && window.electronAPI?.ptyWrite) {
+        window.electronAPI.ptyWrite(id!, cmd + '\r')
+        const res = await (window.electronAPI as any)?.shellExec?.(cmd, cwd || undefined)
+        if (res) {
+          const out = `${res.stdout || ''}${res.stderr ? '\n' + res.stderr : ''}`
+          return out.slice(0, 12000) || '(no output)'
+        }
+        return `Sent to terminal: ${cmd}`
+      }
+      const res = await (window.electronAPI as any)?.shellExec?.(cmd, cwd || undefined)
+      const out = res ? `${res.stdout || ''}${res.stderr ? '\n' + res.stderr : ''}` : 'shellExec unavailable'
+      rt.term.write(out.replace(/\n/g, '\r\n') + '\r\n$ ')
+      return out.slice(0, 12000)
+    },
+  }), [cwd, createSession])
+
   return (
     <div className={`terminal-panel ${visible ? 'visible' : 'hidden'}`}>
-      <div className="terminal-header">
-        <div className="terminal-tabs">
+      <div className="terminal-tabs">
+        <div className="terminal-tab-list">
           {sessions.map((s) => (
             <div
               key={s.id}
@@ -187,22 +224,19 @@ export default function TerminalPanel({ visible, cwd }: Props) {
               onClick={() => setActiveId(s.id)}
             >
               <span>{s.title}</span>
-              <X
-                size={12}
-                className="terminal-tab-close"
-                onClick={(e) => {
-                  e.stopPropagation()
-                  closeSession(s.id)
-                }}
-              />
+              <button type="button" onClick={(e) => { e.stopPropagation(); closeSession(s.id) }} title="Close">
+                <X size={12} />
+              </button>
             </div>
           ))}
-          <button className="terminal-new" title="New Terminal" onClick={() => createSession()}>
-            <Plus size={14} />
-          </button>
         </div>
+        <button type="button" className="terminal-add" onClick={() => createSession()} title="New terminal">
+          <Plus size={14} />
+        </button>
       </div>
-      <div ref={hostRef} className="terminal-container" />
+      <div className="terminal-host" ref={hostRef} />
     </div>
   )
-}
+})
+
+export default TerminalPanel
