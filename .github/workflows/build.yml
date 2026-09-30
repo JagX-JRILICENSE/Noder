@@ -2,10 +2,14 @@ name: Build All Platforms
 
 on:
   push:
-    branches: [main]
+    branches: [main, master]
   pull_request:
-    branches: [main]
+    branches: [main, master]
   workflow_dispatch:
+
+concurrency:
+  group: build-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   build:
@@ -15,16 +19,16 @@ jobs:
         include:
           - os: windows-latest
             platform: win
-            args: --win
+            args: --win --x64
           - os: macos-latest
             platform: mac
-            args: --mac
-          - os: ubuntu-latest
+            args: --mac --arm64
+          - os: ubuntu-22.04
             platform: linux
-            args: --linux
+            args: --linux --x64
 
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 50
+    timeout-minutes: 60
 
     steps:
       - name: Checkout
@@ -33,39 +37,86 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '22'
+          node-version: "20"
 
-      - name: Install dependencies
-        run: npm install --no-audit --no-fund
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
 
-      - name: Install Linux packaging deps
+      - name: Install Pillow (icons)
+        run: python -m pip install --upgrade pip pillow
+
+      - name: Generate app icons
+        run: python scripts/generate-icons.py
+        continue-on-error: false
+
+      - name: Verify icons
+        shell: bash
+        run: |
+          ls -la assets/ || true
+          test -f assets/icon.png || test -f assets/icon.ico || {
+            echo "ERROR: icons missing after generate-icons.py"
+            exit 1
+          }
+
+      - name: Install Linux packaging tools
         if: matrix.platform == 'linux'
         run: |
           sudo apt-get update
-          sudo apt-get install -y rpm fakeroot dpkg
+          sudo apt-get install -y --no-install-recommends \
+            fakeroot dpkg rpm \
+            libopenjp2-tools \
+            xvfb
 
-      - name: Build renderer
+      - name: Install npm dependencies
+        run: npm install --no-audit --no-fund
+        env:
+          npm_config_build_from_source: false
+          npm_config_optional: true
+
+      - name: Build (Vite renderer + Electron main/preload)
         run: npx vite build
+        env:
+          NODE_ENV: production
 
-      - name: Package app
+      - name: Verify build outputs
+        shell: bash
+        run: |
+          echo "== dist =="
+          ls -la dist || { echo "missing dist/"; exit 1; }
+          echo "== dist-electron =="
+          ls -la dist-electron || { echo "missing dist-electron/"; exit 1; }
+          test -f dist-electron/main.js || test -f dist-electron/main.cjs || {
+            echo "ERROR: electron main bundle not found"
+            ls -laR dist-electron || true
+            exit 1
+          }
+
+      - name: Package with electron-builder
         run: npx electron-builder ${{ matrix.args }} --publish never
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           CSC_IDENTITY_AUTO_DISCOVERY: false
           ELECTRON_BUILDER_ALLOW_UNRESOLVED_DEPENDENCIES: true
+          CSC_IDENTITY: ""
 
-      - name: List release
+      - name: List release artifacts
         if: always()
         shell: bash
         run: |
-          if [ -d release ]; then ls -laR release; else echo "No release folder"; fi
+          if [ -d release ]; then
+            find release -type f -exec ls -la {} \;
+          else
+            echo "No release/ folder"
+          fi
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         if: success()
         with:
-          name: Noder-${{ matrix.platform }}-${{ github.run_number }}
+          name: Noder-${{ matrix.platform }}-${{ github.sha }}
           path: |
-            release/**/*
+            release/**
           if-no-files-found: warn
           retention-days: 30
