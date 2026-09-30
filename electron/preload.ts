@@ -63,6 +63,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.invoke('git:diff', filePath, cwd),
   gitPush: (cwd?: string) => ipcRenderer.invoke('git:push', cwd),
   gitPull: (cwd?: string) => ipcRenderer.invoke('git:pull', cwd),
+  shellExec: (command: string, cwd?: string) =>
+    ipcRenderer.invoke('shell:exec', command, cwd),
+  openImageDialog: () => ipcRenderer.invoke('dialog:openImage'),
+  copyFile: (from: string, to: string) => ipcRenderer.invoke('fs:copyFile', from, to),
   gitClone: (repoUrl: string, targetDir: string) =>
     ipcRenderer.invoke('git:clone', repoUrl, targetDir),
 
