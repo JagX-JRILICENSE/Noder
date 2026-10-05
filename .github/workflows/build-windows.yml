@@ -1,76 +1,41 @@
 name: Build Windows App
-
 on:
   push:
     branches: [main, master]
   pull_request:
     branches: [main, master]
   workflow_dispatch:
-
-concurrency:
-  group: build-windows-${{ github.ref }}
-  cancel-in-progress: true
-
 jobs:
   build-windows:
     runs-on: windows-latest
     timeout-minutes: 50
-
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: "20"
-
-      - name: Setup Python
-        uses: actions/setup-python@v5
+      - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-
-      - name: Install Pillow
-        run: python -m pip install --upgrade pip pillow
-
-      - name: Generate icons
-        run: python scripts/generate-icons.py
-
-      - name: Install dependencies
-        run: npm install --no-audit --no-fund
+      - run: python -m pip install --upgrade pip pillow
+      - run: python scripts/generate-icons.py
+      - run: npm install --no-audit --no-fund
         env:
           npm_config_optional: true
-
-      - name: Build renderer + electron
-        run: npx vite build
+      - run: npx vite build
         env:
           NODE_ENV: production
-
-      - name: Package Windows (NSIS + portable)
-        run: npx electron-builder --win --x64 --publish never
+      - run: npx electron-builder --win --x64 --publish never
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           CSC_IDENTITY_AUTO_DISCOVERY: false
           ELECTRON_BUILDER_ALLOW_UNRESOLVED_DEPENDENCIES: true
-
-      - name: List release
-        if: always()
-        shell: pwsh
-        run: |
-          if (Test-Path release) {
-            Get-ChildItem -Recurse release | Format-Table FullName, Length
-          } else {
-            Write-Host "No release folder"
-          }
-
-      - name: Upload Windows artifacts
-        uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v4
         if: success()
         with:
           name: Noder-Windows-${{ github.sha }}
           path: |
             release/**/*.exe
             release/**/*.yml
-            release/**/*.blockmap
           if-no-files-found: warn
           retention-days: 30
