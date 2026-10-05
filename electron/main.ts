@@ -8,20 +8,52 @@ import { autoUpdater } from 'electron-updater'
 import simpleGit, { SimpleGit } from 'simple-git'
 
 let pty: typeof import('node-pty') | null = null
-try { pty = require('node-pty') } catch { console.warn('[Noder] node-pty not available') }
+try {
+  pty = require('node-pty')
+} catch {
+  console.warn('[Noder] node-pty not available — using child_process shell')
+}
 
 process.env.DIST = path.join(__dirname, '../dist')
-process.env.VITE_PUBLIC = app.isPackaged ? process.env.DIST : path.join(process.env.DIST, '../public')
+process.env.VITE_PUBLIC = app.isPackaged
+  ? process.env.DIST
+  : path.join(process.env.DIST, '../public')
 
 let win: BrowserWindow | null = null
 let currentWorkspace: string | null = null
+
 const ptySessions = new Map<string, any>()
 const procSessions = new Map<string, ChildProcessWithoutNullStreams>()
 
-interface ExtensionCommand { command: string; title: string; category?: string }
-interface ExtensionContribution { commands?: ExtensionCommand[]; menus?: Record<string, any[]>; statusBar?: { id: string; text: string; command?: string }[] }
-interface NoderExtension { id: string; name: string; version: string; description?: string; path: string; contributes: ExtensionContribution; activate?: (api: ExtensionAPI) => void | Promise<void>; deactivate?: () => void }
-interface ExtensionAPI { registerCommand: (id: string, handler: (...args: any[]) => any) => void; getWorkspace: () => string | null; showMessage: (msg: string) => void; executeCommand: (id: string, ...args: any[]) => Promise<any> }
+interface ExtensionCommand {
+  command: string
+  title: string
+  category?: string
+}
+
+interface ExtensionContribution {
+  commands?: ExtensionCommand[]
+  menus?: Record<string, any[]>
+  statusBar?: { id: string; text: string; command?: string }[]
+}
+
+interface NoderExtension {
+  id: string
+  name: string
+  version: string
+  description?: string
+  path: string
+  contributes: ExtensionContribution
+  activate?: (api: ExtensionAPI) => void | Promise<void>
+  deactivate?: () => void
+}
+
+interface ExtensionAPI {
+  registerCommand: (id: string, handler: (...args: any[]) => any) => void
+  getWorkspace: () => string | null
+  showMessage: (msg: string) => void
+  executeCommand: (id: string, ...args: any[]) => Promise<any>
+}
 
 const loadedExtensions: NoderExtension[] = []
 const commandHandlers = new Map<string, (...args: any[]) => any>()
@@ -30,9 +62,15 @@ const statusBarItems: { id: string; text: string; command?: string; extensionId:
 
 function createExtensionAPI(ext: NoderExtension): ExtensionAPI {
   return {
-    registerCommand(id, handler) { commandHandlers.set(id, handler) },
-    getWorkspace() { return currentWorkspace },
-    showMessage(msg) { win?.webContents.send('extension:message', { extensionId: ext.id, message: msg }) },
+    registerCommand(id, handler) {
+      commandHandlers.set(id, handler)
+    },
+    getWorkspace() {
+      return currentWorkspace
+    },
+    showMessage(msg) {
+      win?.webContents.send('extension:message', { extensionId: ext.id, message: msg })
+    },
     async executeCommand(id, ...args) {
       const handler = commandHandlers.get(id)
       if (!handler) throw new Error(`Command not found: ${id}`)
@@ -44,11 +82,15 @@ function createExtensionAPI(ext: NoderExtension): ExtensionAPI {
 function loadExtensions() {
   loadedExtensions.length = 0
   statusBarItems.length = 0
-  const extDirs = [path.join(app.getAppPath(), 'extensions'), path.join(app.getPath('userData'), 'extensions')]
+  const extDirs = [
+    path.join(app.getAppPath(), 'extensions'),
+    path.join(app.getPath('userData'), 'extensions'),
+  ]
   for (const dir of extDirs) {
     if (!existsSync(dir)) continue
     try {
-      for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      const entries = readdirSync(dir, { withFileTypes: true })
+      for (const entry of entries) {
         if (!entry.isDirectory()) continue
         const extPath = path.join(dir, entry.name)
         const manifestPath = path.join(extPath, 'package.json')
@@ -59,18 +101,34 @@ function loadExtensions() {
           const extId = manifest.name || entry.name
           if (contributes.commands) {
             for (const cmd of contributes.commands) {
-              commandMeta.set(cmd.command, { title: cmd.title, category: cmd.category || extId, source: extId })
+              commandMeta.set(cmd.command, {
+                title: cmd.title,
+                category: cmd.category || extId,
+                source: extId,
+              })
               if (!commandHandlers.has(cmd.command)) {
                 commandHandlers.set(cmd.command, () => {
-                  win?.webContents.send('extension:message', { extensionId: extId, message: `Command ${cmd.command} executed` })
+                  win?.webContents.send('extension:message', {
+                    extensionId: extId,
+                    message: `Command ${cmd.command} executed`,
+                  })
                 })
               }
             }
           }
           if (contributes.statusBar) {
-            for (const item of contributes.statusBar) statusBarItems.push({ ...item, extensionId: extId })
+            for (const item of contributes.statusBar) {
+              statusBarItems.push({ ...item, extensionId: extId })
+            }
           }
-          const ext: NoderExtension = { id: extId, name: manifest.displayName || manifest.name || entry.name, version: manifest.version || '0.0.0', description: manifest.description, path: extPath, contributes }
+          const ext: NoderExtension = {
+            id: extId,
+            name: manifest.displayName || manifest.name || entry.name,
+            version: manifest.version || '0.0.0',
+            description: manifest.description,
+            path: extPath,
+            contributes,
+          }
           const mainFile = manifest.main || 'extension.js'
           const mainPath = path.join(extPath, mainFile)
           if (existsSync(mainPath)) {
@@ -79,17 +137,23 @@ function loadExtensions() {
               const mod = require(mainPath)
               if (typeof mod.activate === 'function') {
                 ext.activate = mod.activate
-                Promise.resolve(mod.activate(createExtensionAPI(ext))).catch((e: any) => console.warn(`[Noder] Extension ${ext.id} activate error:`, e))
+                Promise.resolve(mod.activate(createExtensionAPI(ext))).catch((e: any) =>
+                  console.warn(`[Noder] Extension ${ext.id} activate error:`, e)
+                )
               }
               if (typeof mod.deactivate === 'function') ext.deactivate = mod.deactivate
-            } catch (e) { console.warn(`[Noder] Failed to activate ${ext.id}:`, e) }
+            } catch (e) {
+              console.warn(`[Noder] Failed to activate ${ext.id}:`, e)
+            }
           }
           loadedExtensions.push(ext)
-        } catch (e) { console.warn(`[Noder] Failed to load extension ${entry.name}`, e) }
+        } catch (e) {
+          console.warn(`[Noder] Failed to load extension ${entry.name}`, e)
+        }
       }
     } catch {}
   }
-  const builtins = [
+  const builtins: { id: string; title: string; category: string }[] = [
     { id: 'noder.openFolder', title: 'Open Folder', category: 'File' },
     { id: 'noder.saveFile', title: 'Save File', category: 'File' },
     { id: 'noder.toggleTerminal', title: 'Toggle Terminal', category: 'View' },
@@ -103,7 +167,7 @@ function loadExtensions() {
     { id: 'noder.gitPull', title: 'Git: Pull', category: 'Git' },
     { id: 'noder.toggleMarketplace', title: 'Open Extension Marketplace', category: 'Extensions' },
     { id: 'noder.toggleAI', title: 'Toggle AI Assistant', category: 'AI' },
-    { id: 'noder.newGamePygame', title: 'New Game: Pygame Snake', category: 'Games' },
+    { id: 'noder.newGamePygame', title: 'New Game: Pygame Snake (desktop)', category: 'Games' },
     { id: 'noder.checkUpdates', title: 'Check for Updates', category: 'Help' },
     { id: 'noder.newFile', title: 'New File', category: 'File' },
     { id: 'noder.newFolder', title: 'New Folder', category: 'File' },
@@ -119,7 +183,9 @@ function loadExtensions() {
     { id: 'noder.detectLanguage', title: 'Re-detect Language', category: 'Edit' },
     { id: 'noder.saveAndPush', title: 'Save, Commit & Push to GitHub', category: 'Git' },
   ]
-  for (const b of builtins) commandMeta.set(b.id, { title: b.title, category: b.category, source: 'noder' })
+  for (const b of builtins) {
+    commandMeta.set(b.id, { title: b.title, category: b.category, source: 'noder' })
+  }
 }
 
 function setupAutoUpdater() {
@@ -138,19 +204,39 @@ function setupAutoUpdater() {
 function createWindow() {
   Menu.setApplicationMenu(null)
   win = new BrowserWindow({
-    width: 1440, height: 920, minWidth: 900, minHeight: 600,
-    title: 'Noder', backgroundColor: '#12161c', show: false, frame: false,
-    autoHideMenuBar: true, maximizable: true, minimizable: true, fullscreenable: true,
+    width: 1440,
+    height: 920,
+    minWidth: 900,
+    minHeight: 600,
+    title: 'Noder',
+    backgroundColor: '#12161c',
+    show: false,
+    frame: false,
+    autoHideMenuBar: true,
+    maximizable: true,
+    minimizable: true,
+    fullscreenable: true,
     titleBarStyle: process.platform === 'darwin' ? 'hiddenInset' : undefined,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
-      nodeIntegration: false, contextIsolation: true, sandbox: false,
+      nodeIntegration: false,
+      contextIsolation: true,
+      sandbox: false,
     },
   })
-  win.once('ready-to-show', () => { win?.show(); win?.maximize() })
-  win.webContents.setWindowOpenHandler(({ url }) => { shell.openExternal(url); return { action: 'deny' } })
-  if (process.env.VITE_DEV_SERVER_URL) win.loadURL(process.env.VITE_DEV_SERVER_URL)
-  else win.loadFile(path.join(process.env.DIST!, 'index.html'))
+  win.once('ready-to-show', () => {
+    win?.show()
+    win?.maximize()
+  })
+  win.webContents.setWindowOpenHandler(({ url }) => {
+    shell.openExternal(url)
+    return { action: 'deny' }
+  })
+  if (process.env.VITE_DEV_SERVER_URL) {
+    win.loadURL(process.env.VITE_DEV_SERVER_URL)
+  } else {
+    win.loadFile(path.join(process.env.DIST!, 'index.html'))
+  }
 }
 
 ipcMain.handle('dialog:openFolder', async () => {
@@ -159,15 +245,20 @@ ipcMain.handle('dialog:openFolder', async () => {
   currentWorkspace = result.filePaths[0]
   return currentWorkspace
 })
+
 ipcMain.handle('fs:readDir', async (_e, dirPath: string) => {
   try {
     const entries = await fs.readdir(dirPath, { withFileTypes: true })
     return entries.map((e) => ({ name: e.name, isDirectory: e.isDirectory(), path: path.join(dirPath, e.name) }))
-  } catch { return [] }
+  } catch {
+    return []
+  }
 })
+
 ipcMain.handle('fs:readFile', async (_e, filePath: string) => {
   try { return await fs.readFile(filePath, 'utf-8') } catch { return null }
 })
+
 ipcMain.handle('fs:writeFile', async (_e, filePath: string, content: string) => {
   try {
     await fs.mkdir(path.dirname(filePath), { recursive: true })
@@ -175,97 +266,211 @@ ipcMain.handle('fs:writeFile', async (_e, filePath: string, content: string) => 
     return true
   } catch { return false }
 })
+
 ipcMain.handle('fs:mkdir', async (_e, dirPath: string) => {
-  try { await fs.mkdir(dirPath, { recursive: true }); return true } catch { return false }
+  try {
+    await fs.mkdir(dirPath, { recursive: true })
+    return true
+  } catch { return false }
 })
+
 ipcMain.handle('fs:delete', async (_e, targetPath: string) => {
-  try { await fs.rm(targetPath, { recursive: true, force: true }); return true } catch { return false }
+  try {
+    await fs.rm(targetPath, { recursive: true, force: true })
+    return true
+  } catch { return false }
 })
+
 ipcMain.handle('fs:rename', async (_e, from: string, to: string) => {
-  try { await fs.rename(from, to); return true } catch { return false }
+  try {
+    await fs.rename(from, to)
+    return true
+  } catch { return false }
 })
+
 ipcMain.handle('shell:showItem', async (_e, targetPath: string) => {
-  try { shell.showItemInFolder(targetPath); return true } catch { return false }
+  try {
+    shell.showItemInFolder(targetPath)
+    return true
+  } catch { return false }
 })
+
 ipcMain.handle('dialog:saveFile', async (_e, defaultName?: string) => {
-  const result = await dialog.showSaveDialog(win!, { defaultPath: defaultName || 'untitled.txt' })
+  const result = await dialog.showSaveDialog(win!, {
+    defaultPath: defaultName || 'untitled.txt',
+  })
   if (result.canceled || !result.filePath) return null
   return result.filePath
 })
+
 ipcMain.handle('window:minimize', () => { win?.minimize() })
-ipcMain.handle('window:maximize', () => { if (!win) return; if (win.isMaximized()) win.unmaximize(); else win.maximize() })
+ipcMain.handle('window:maximize', () => {
+  if (!win) return
+  if (win.isMaximized()) win.unmaximize()
+  else win.maximize()
+})
 ipcMain.handle('window:close', () => { win?.close() })
+
 ipcMain.handle('shell:openExternal', async (_e, url: string) => { await shell.openExternal(url) })
 ipcMain.handle('app:getVersion', () => app.getVersion())
-ipcMain.handle('extensions:list', () => loadedExtensions.map((e) => ({ id: e.id, name: e.name, version: e.version, description: e.description, contributes: e.contributes })))
+
+ipcMain.handle('extensions:list', () =>
+  loadedExtensions.map((e) => ({
+    id: e.id, name: e.name, version: e.version, description: e.description, contributes: e.contributes,
+  }))
+)
+
 ipcMain.handle('extensions:listCommands', () => {
   const list: { id: string; title: string; category?: string; source: string }[] = []
   for (const [id, meta] of commandMeta) list.push({ id, ...meta })
   return list.sort((a, b) => (a.category || '').localeCompare(b.category || '') || a.title.localeCompare(b.title))
 })
+
 ipcMain.handle('extensions:executeCommand', async (_e, commandId: string, ...args: any[]) => {
   const handler = commandHandlers.get(commandId)
   if (!handler) return { ok: true, builtin: true, commandId }
-  try { return { ok: true, result: await handler(...args) } } catch (err: any) { return { ok: false, error: err?.message || String(err) } }
+  try {
+    const result = await handler(...args)
+    return { ok: true, result }
+  } catch (err: any) {
+    return { ok: false, error: err?.message || String(err) }
+  }
 })
+
 ipcMain.handle('extensions:getStatusBarItems', () => statusBarItems)
-ipcMain.handle('extensions:reload', () => { loadExtensions(); return { ok: true, count: loadedExtensions.length } })
+
+ipcMain.handle('extensions:reload', () => {
+  loadExtensions()
+  return { ok: true, count: loadedExtensions.length }
+})
 
 function getGit(cwd?: string): SimpleGit | null {
   const root = cwd || currentWorkspace
   if (!root) return null
   return simpleGit(root)
 }
+
 ipcMain.handle('git:status', async (_e, cwd?: string) => {
   try {
-    const git = getGit(cwd); if (!git) return null
+    const git = getGit(cwd)
+    if (!git) return null
     const status = await git.status()
-    return { current: status.current, tracking: status.tracking, ahead: status.ahead, behind: status.behind, files: status.files.map((f) => ({ path: f.path, index: f.index, working_dir: f.working_dir })), isClean: status.isClean() }
-  } catch { return null }
+    return {
+      current: status.current,
+      tracking: status.tracking,
+      ahead: status.ahead,
+      behind: status.behind,
+      files: status.files.map((f) => ({ path: f.path, index: f.index, working_dir: f.working_dir })),
+      isClean: status.isClean(),
+    }
+  } catch {
+    return null
+  }
 })
+
 ipcMain.handle('git:blame', async (_e, filePath: string) => {
   try {
-    const git = simpleGit(path.dirname(filePath))
+    const dir = path.dirname(filePath)
+    const git = simpleGit(dir)
     const result = await git.raw(['blame', '--line-porcelain', filePath])
     const lines: { line: number; hash: string; author: string; summary: string }[] = []
-    let current: any = {}; let lineNum = 0
+    let current: any = {}
+    let lineNum = 0
     for (const row of result.split('\n')) {
       if (/^[0-9a-f]{40}/.test(row)) current = { hash: row.slice(0, 8) }
       else if (row.startsWith('author ')) current.author = row.slice(7)
       else if (row.startsWith('summary ')) current.summary = row.slice(8)
-      else if (row.startsWith('\t')) { lineNum++; lines.push({ line: lineNum, hash: current.hash || '00000000', author: current.author || 'Unknown', summary: current.summary || '' }) }
+      else if (row.startsWith('\t')) {
+        lineNum++
+        lines.push({ line: lineNum, hash: current.hash || '00000000', author: current.author || 'Unknown', summary: current.summary || '' })
+      }
     }
     return lines
-  } catch { return [] }
+  } catch {
+    return []
+  }
 })
+
 ipcMain.handle('git:stage', async (_e, files: string | string[], cwd?: string) => {
-  try { const git = getGit(cwd); if (!git) return { ok: false, error: 'No workspace' }; await git.add(files); return { ok: true } } catch (e: any) { return { ok: false, error: e.message } }
+  try {
+    const git = getGit(cwd)
+    if (!git) return { ok: false, error: 'No workspace' }
+    await git.add(files)
+    return { ok: true }
+  } catch (e: any) {
+    return { ok: false, error: e.message }
+  }
 })
+
 ipcMain.handle('git:unstage', async (_e, files: string | string[], cwd?: string) => {
-  try { const git = getGit(cwd); if (!git) return { ok: false, error: 'No workspace' }; await git.reset(['HEAD', '--', ...(Array.isArray(files) ? files : [files])]); return { ok: true } } catch (e: any) { return { ok: false, error: e.message } }
+  try {
+    const git = getGit(cwd)
+    if (!git) return { ok: false, error: 'No workspace' }
+    await git.reset(['HEAD', '--', ...(Array.isArray(files) ? files : [files])])
+    return { ok: true }
+  } catch (e: any) {
+    return { ok: false, error: e.message }
+  }
 })
+
 ipcMain.handle('git:commit', async (_e, message: string, cwd?: string) => {
-  try { const git = getGit(cwd); if (!git) return { ok: false, error: 'No workspace' }; if (!message?.trim()) return { ok: false, error: 'Empty commit message' }; const result = await git.commit(message.trim()); return { ok: true, commit: result.commit } } catch (e: any) { return { ok: false, error: e.message } }
+  try {
+    const git = getGit(cwd)
+    if (!git) return { ok: false, error: 'No workspace' }
+    if (!message?.trim()) return { ok: false, error: 'Empty commit message' }
+    const result = await git.commit(message.trim())
+    return { ok: true, commit: result.commit }
+  } catch (e: any) {
+    return { ok: false, error: e.message }
+  }
 })
+
 ipcMain.handle('git:diff', async (_e, filePath?: string, cwd?: string) => {
-  try { const git = getGit(cwd); if (!git) return null; if (filePath) return await git.diff(['--', filePath]); return await git.diff() } catch { return null }
+  try {
+    const git = getGit(cwd)
+    if (!git) return null
+    if (filePath) return await git.diff(['--', filePath])
+    return await git.diff()
+  } catch {
+    return null
+  }
 })
+
 ipcMain.handle('git:push', async (_e, cwd?: string) => {
-  try { const git = getGit(cwd); if (!git) return { ok: false, error: 'No workspace' }; const result = await git.push(); return { ok: true, result: String(result) } } catch (e: any) { return { ok: false, error: e.message } }
+  try {
+    const git = getGit(cwd)
+    if (!git) return { ok: false, error: 'No workspace' }
+    const result = await git.push()
+    return { ok: true, result: String(result) }
+  } catch (e: any) {
+    return { ok: false, error: e.message }
+  }
 })
+
 ipcMain.handle('git:pull', async (_e, cwd?: string) => {
-  try { const git = getGit(cwd); if (!git) return { ok: false, error: 'No workspace' }; const result = await git.pull(); return { ok: true, summary: result.summary } } catch (e: any) { return { ok: false, error: e.message } }
+  try {
+    const git = getGit(cwd)
+    if (!git) return { ok: false, error: 'No workspace' }
+    const result = await git.pull()
+    return { ok: true, summary: result.summary }
+  } catch (e: any) {
+    return { ok: false, error: e.message }
+  }
 })
+
 ipcMain.handle('git:clone', async (_e, repoUrl: string, targetDir: string) => {
   try {
     if (!repoUrl || !targetDir) return { ok: false, error: 'Missing url or folder' }
     if (existsSync(targetDir)) return { ok: false, error: 'Folder already exists' }
     const parent = path.dirname(targetDir)
     if (!existsSync(parent)) mkdirSync(parent, { recursive: true })
-    await simpleGit(parent).clone(repoUrl, path.basename(targetDir))
+    const git = simpleGit(parent)
+    await git.clone(repoUrl, path.basename(targetDir))
     currentWorkspace = targetDir
     return { ok: true, path: targetDir }
-  } catch (e: any) { return { ok: false, error: e.message } }
+  } catch (e: any) {
+    return { ok: false, error: e.message }
+  }
 })
 
 ipcMain.handle('pty:spawn', (_e, id: string, cwd?: string) => {
@@ -275,72 +480,100 @@ ipcMain.handle('pty:spawn', (_e, id: string, cwd?: string) => {
   if (pty) {
     try {
       const shellCmd = process.platform === 'win32' ? 'powershell.exe' : process.env.SHELL || 'bash'
-      const term = pty.spawn(shellCmd, process.platform === 'win32' ? [] : ['-l'], { name: 'xterm-256color', cols: 100, rows: 30, cwd: workDir, env: env as any })
+      const term = pty.spawn(shellCmd, process.platform === 'win32' ? [] : ['-l'], {
+        name: 'xterm-256color',
+        cols: 100,
+        rows: 30,
+        cwd: workDir,
+        env: env as any,
+      })
       term.onData((data: string) => win?.webContents.send('pty:data', { id, data }))
-      term.onExit(() => { ptySessions.delete(id); win?.webContents.send('pty:exit', { id }) })
+      term.onExit(() => {
+        ptySessions.delete(id)
+        win?.webContents.send('pty:exit', { id })
+      })
       ptySessions.set(id, term)
       return { ok: true, mode: 'pty' }
-    } catch (err: any) { console.warn('[Noder] node-pty spawn failed', err) }
+    } catch (err: any) {
+      console.warn('[Noder] node-pty spawn failed, falling back to process shell', err)
+    }
   }
   try {
     let child: ChildProcessWithoutNullStreams
-    if (process.platform === 'win32') child = spawn('powershell.exe', ['-NoLogo', '-NoExit'], { cwd: workDir, env, windowsHide: true })
-    else child = spawn(process.env.SHELL || '/bin/bash', ['-i'], { cwd: workDir, env })
-    child.stdout.on('data', (buf: Buffer) => win?.webContents.send('pty:data', { id, data: buf.toString('utf8') }))
-    child.stderr.on('data', (buf: Buffer) => win?.webContents.send('pty:data', { id, data: buf.toString('utf8') }))
-    child.on('exit', () => { procSessions.delete(id); win?.webContents.send('pty:exit', { id }) })
-    child.on('error', () => { procSessions.delete(id); win?.webContents.send('pty:exit', { id }) })
+    if (process.platform === 'win32') {
+      child = spawn('powershell.exe', ['-NoLogo', '-NoExit'], {
+        cwd: workDir,
+        env,
+        windowsHide: true,
+      })
+    } else {
+      const sh = process.env.SHELL || '/bin/bash'
+      child = spawn(sh, ['-i'], { cwd: workDir, env })
+    }
+    child.stdout.on('data', (buf: Buffer) => {
+      win?.webContents.send('pty:data', { id, data: buf.toString('utf8') })
+    })
+    child.stderr.on('data', (buf: Buffer) => {
+      win?.webContents.send('pty:data', { id, data: buf.toString('utf8') })
+    })
+    child.on('exit', () => {
+      procSessions.delete(id)
+      win?.webContents.send('pty:exit', { id })
+    })
+    child.on('error', (err) => {
+      win?.webContents.send('pty:data', { id, data: `\r\n[shell error] ${err.message}\r\n` })
+      procSessions.delete(id)
+      win?.webContents.send('pty:exit', { id })
+    })
     procSessions.set(id, child)
     return { ok: true, mode: 'proc' }
-  } catch (e: any) { return { ok: false, error: e.message } }
+  } catch (e: any) {
+    return { ok: false, error: e.message }
+  }
 })
+
 ipcMain.on('pty:write', (_e, id: string, data: string) => {
-  const term = ptySessions.get(id); if (term) { term.write(data); return }
-  const child = procSessions.get(id); if (child?.stdin) child.stdin.write(data)
+  const term = ptySessions.get(id)
+  if (term) { term.write(data); return }
+  const child = procSessions.get(id)
+  if (child?.stdin) child.stdin.write(data)
 })
+
 ipcMain.on('pty:resize', (_e, id: string, cols: number, rows: number) => {
-  const term = ptySessions.get(id); if (term?.resize) term.resize(cols, rows)
+  const term = ptySessions.get(id)
+  if (term?.resize) term.resize(cols, rows)
 })
+
 ipcMain.handle('pty:kill', (_e, id: string) => {
-  const term = ptySessions.get(id); if (term) { try { term.kill() } catch {}; ptySessions.delete(id); return true }
-  const child = procSessions.get(id); if (child) { try { child.kill() } catch {}; procSessions.delete(id); return true }
+  const term = ptySessions.get(id)
+  if (term) { try { term.kill() } catch {}; ptySessions.delete(id); return true }
+  const child = procSessions.get(id)
+  if (child) { try { child.kill() } catch {}; procSessions.delete(id); return true }
   return false
 })
 
-ipcMain.handle('shell:exec', async (_e, command: string, cwd?: string) => {
-  return new Promise((resolve) => {
-    const workDir = cwd || currentWorkspace || process.cwd()
-    const isWin = process.platform === 'win32'
-    const child = spawn(isWin ? 'powershell.exe' : (process.env.SHELL || 'bash'), isWin ? ['-NoProfile', '-Command', command] : ['-lc', command], { cwd: workDir, env: process.env, windowsHide: true })
-    let out = ''; let err = ''; const max = 200_000
-    child.stdout?.on('data', (d: Buffer) => { if (out.length < max) out += d.toString('utf8') })
-    child.stderr?.on('data', (d: Buffer) => { if (err.length < max) err += d.toString('utf8') })
-    const timer = setTimeout(() => { try { child.kill() } catch {}; resolve({ ok: false, stdout: out, stderr: err + '\n(timeout)', code: -1 }) }, 120_000)
-    child.on('close', (code) => { clearTimeout(timer); resolve({ ok: code === 0, stdout: out, stderr: err, code: code ?? 1 }) })
-    child.on('error', (e) => { clearTimeout(timer); resolve({ ok: false, stdout: out, stderr: String(e), code: 1 }) })
-  })
-})
-ipcMain.handle('dialog:openImage', async () => {
-  if (!win) return null
-  const res = await dialog.showOpenDialog(win, { title: 'Add image to project', properties: ['openFile', 'multiSelections'], filters: [{ name: 'Images', extensions: ['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'bmp', 'ico'] }, { name: 'All', extensions: ['*'] }] })
-  if (res.canceled || !res.filePaths.length) return null
-  return res.filePaths
-})
-ipcMain.handle('fs:copyFile', async (_e, from: string, to: string) => {
-  try { await fs.mkdir(path.dirname(to), { recursive: true }); await fs.copyFile(from, to); return true } catch { return false }
+ipcMain.handle('updater:check', async () => {
+  try {
+    if (!app.isPackaged) return { ok: false, message: 'Dev mode' }
+    await autoUpdater.checkForUpdates()
+    return { ok: true }
+  } catch (e: any) {
+    return { ok: false, message: e.message }
+  }
 })
 
-ipcMain.handle('updater:check', async () => {
-  try { if (!app.isPackaged) return { ok: false, message: 'Dev mode' }; await autoUpdater.checkForUpdates(); return { ok: true } } catch (e: any) { return { ok: false, message: e.message } }
-})
 ipcMain.handle('updater:install', () => { autoUpdater.quitAndInstall() })
+
 ipcMain.handle('marketplace:list', async () => {
   try {
     const catalogPath = path.join(app.getAppPath(), 'marketplace', 'catalog.json')
     if (existsSync(catalogPath)) return JSON.parse(readFileSync(catalogPath, 'utf-8'))
     return { extensions: [] }
-  } catch { return { extensions: [] } }
+  } catch {
+    return { extensions: [] }
+  }
 })
+
 ipcMain.handle('marketplace:install', async (_e, extensionId: string) => {
   try {
     const src = path.join(app.getAppPath(), 'extensions', extensionId)
@@ -350,29 +583,76 @@ ipcMain.handle('marketplace:install', async (_e, extensionId: string) => {
     cpSync(src, dest, { recursive: true })
     loadExtensions()
     return { ok: true, path: dest }
-  } catch (e: any) { return { ok: false, error: e.message } }
+  } catch (e: any) {
+    return { ok: false, error: e.message }
+  }
 })
+
 ipcMain.handle('project:scaffoldGame', async (_e, kind: string, targetDir?: string) => {
   try {
-    const dest = targetDir || path.join(currentWorkspace || os.homedir(), 'noder-game')
-    mkdirSync(dest, { recursive: true })
-    writeFileSync(path.join(dest, 'README.md'), '# Snake\n\n```\npip install pygame\npython main.py\n```\n')
-    writeFileSync(path.join(dest, 'main.py'), 'print("Run full template from Noder templates/pygame-snake")\n')
+    const destRoot = targetDir || currentWorkspace
+    if (!destRoot) return { ok: false, error: 'Open a folder first' }
+    const name = 'pygame-snake'
+    const dest = path.join(destRoot, name)
+    const srcCandidates = [
+      path.join(app.getAppPath(), 'templates', name),
+      path.join(process.cwd(), 'templates', name),
+    ]
+    let src: string | null = null
+    for (const c of srcCandidates) {
+      if (existsSync(c)) { src = c; break }
+    }
+    if (src) {
+      cpSync(src, dest, { recursive: true })
+    } else {
+      mkdirSync(dest, { recursive: true })
+      writeFileSync(path.join(dest, 'README.md'), '# Snake\n\n```\npip install pygame\npython main.py\n```\n')
+      writeFileSync(path.join(dest, 'main.py'), 'print("Copy full template from Noder repo templates/pygame-snake")\n')
+    }
     return { ok: true, path: dest }
-  } catch (e: any) { return { ok: false, error: e.message } }
+  } catch (e: any) {
+    return { ok: false, error: e.message }
+  }
 })
+
 ipcMain.handle('window:toggleFullscreen', () => {
   if (!win) return false
   win.setFullScreen(!win.isFullScreen())
   return win.isFullScreen()
 })
 
-app.whenReady().then(() => { loadExtensions(); createWindow(); setupAutoUpdater() })
-app.on('window-all-closed', () => {
-  for (const term of ptySessions.values()) { try { term.kill() } catch {} }
-  ptySessions.clear()
-  for (const child of procSessions.values()) { try { child.kill() } catch {} }
-  procSessions.clear()
-  if (process.platform !== 'darwin') { app.quit(); win = null }
+// Agent shell + device image IPC
+try {
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  require('./registerAgentIpc')(ipcMain, {
+    getWin: () => win,
+    getWorkspace: () => currentWorkspace,
+  })
+} catch (e) {
+  console.warn('[Noder] registerAgentIpc failed', e)
+}
+
+app.whenReady().then(() => {
+  loadExtensions()
+  createWindow()
+  setupAutoUpdater()
 })
-app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) createWindow() })
+
+app.on('window-all-closed', () => {
+  for (const term of ptySessions.values()) {
+    try { term.kill() } catch {}
+  }
+  ptySessions.clear()
+  for (const child of procSessions.values()) {
+    try { child.kill() } catch {}
+  }
+  procSessions.clear()
+  if (process.platform !== 'darwin') {
+    app.quit()
+    win = null
+  }
+})
+
+app.on('activate', () => {
+  if (BrowserWindow.getAllWindows().length === 0) createWindow()
+})
