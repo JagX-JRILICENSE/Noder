@@ -3,7 +3,10 @@
   "version": "0.9.9",
   "description": "Noder - AI-first collaborative IDE by JagX & JRILICENSE. Editor, agent, previews, themes, Git, terminal.",
   "main": "electron/bootstrap.js",
-  "author": "JagX & JRILICENSE",
+  "author": {
+    "name": "JagX & JRILICENSE",
+    "email": "jrilicense@gmail.com"
+  },
   "license": "MIT",
   "private": true,
   "scripts": {
@@ -91,7 +94,8 @@
     "linux": {
       "target": [{ "target": "AppImage", "arch": ["x64"] }, { "target": "deb", "arch": ["x64"] }],
       "icon": "assets/icon.png",
-      "category": "Development"
+      "category": "Development",
+      "maintainer": "JagX & JRILICENSE <jrilicense@gmail.com>"
     }
   }
 }

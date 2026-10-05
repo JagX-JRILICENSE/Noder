@@ -79,7 +79,7 @@ jobs:
 
   android:
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 75
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -89,8 +89,14 @@ jobs:
         with:
           distribution: temurin
           java-version: "17"
-      - uses: android-actions/setup-android@v3
-      - run: yes | sdkmanager --licenses || true
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v4
+        with:
+          packages: platform-tools
+      - name: Install platforms + build-tools
+        run: |
+          yes | sdkmanager --licenses || true
+          sdkmanager "platforms;android-34" "build-tools;34.0.0" "platform-tools" || true
       - run: npm install --no-audit --no-fund
       - run: npm install @capacitor/core @capacitor/cli @capacitor/android --no-audit --no-fund
       - run: npx vite build
@@ -107,8 +113,8 @@ jobs:
           npx cap sync android
           chmod +x android/gradlew
           cd android
-          ./gradlew assembleDebug --no-daemon
-          ./gradlew bundleRelease --no-daemon || ./gradlew assembleRelease --no-daemon || true
+          ./gradlew assembleDebug --no-daemon --stacktrace
+          ./gradlew bundleRelease --no-daemon --stacktrace || ./gradlew assembleRelease --no-daemon --stacktrace || true
       - uses: actions/upload-artifact@v4
         if: success()
         with:

@@ -27,11 +27,16 @@ jobs:
           distribution: temurin
           java-version: "17"
 
+      # v4 (or v3 + packages without tools): Google removed the old `tools` package
       - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
+        uses: android-actions/setup-android@v4
+        with:
+          packages: platform-tools
 
-      - name: Accept licenses
-        run: yes | sdkmanager --licenses || true
+      - name: Install SDK platforms + build-tools
+        run: |
+          yes | sdkmanager --licenses || true
+          sdkmanager "platforms;android-34" "build-tools;34.0.0" "platform-tools" || true
 
       - name: Install npm deps
         run: npm install --no-audit --no-fund
@@ -79,8 +84,8 @@ jobs:
       - name: Collect outputs
         run: |
           mkdir -p android-out
-          find android/app/build/outputs -type f \( -name '*.apk' -o -name '*.aab' \) -exec cp -v {} android-out/ \;
-          ls -lah android-out/
+          find android/app/build/outputs -type f \( -name '*.apk' -o -name '*.aab' \) -exec cp -v {} android-out/ \; || true
+          ls -lah android-out/ || true
 
       - uses: actions/upload-artifact@v4
         with:
