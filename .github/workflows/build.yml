@@ -109,7 +109,10 @@ jobs:
           fi
           mkdir -p dist
           test -f dist/index.html || echo '<html><body>Noder</body></html>' > dist/index.html
-          if [ ! -d android ]; then npx cap add android; fi
+          if [ ! -f android/gradlew ]; then
+            rm -rf android
+            npx cap add android
+          fi
           npx cap sync android
           chmod +x android/gradlew
           cd android
