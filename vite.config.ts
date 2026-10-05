@@ -11,26 +11,15 @@ export default defineConfig({
         vite: {
           build: {
             rollupOptions: {
-              external: [
-                'electron',
-                'node-pty',
-                'electron-updater',
-                'simple-git',
-              ],
+              external: ['electron', 'node-pty', 'electron-updater', 'simple-git'],
             },
           },
         },
       },
-      preload: {
-        input: 'electron/preload.ts',
-      },
+      preload: { input: 'electron/preload.ts' },
       renderer: {},
     }),
   ],
-  server: {
-    port: 5173,
-  },
-  build: {
-    chunkSizeWarningLimit: 3000,
-  },
+  server: { port: 5173 },
+  build: { chunkSizeWarningLimit: 3000 },
 })
