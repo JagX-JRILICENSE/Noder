@@ -1,12 +1,1 @@
-{
-  "name": "noder-theme-dracula",
-  "displayName": "Dracula Theme",
-  "version": "1.0.0",
-  "main": "extension.js",
-  "categories": ["Themes"],
-  "contributes": {
-    "commands": [
-      { "command": "noder-theme-dracula.apply", "title": "Apply Dracula Theme", "category": "Theme" }
-    ]
-  }
-}
+{"name":"noder-theme-dracula","displayName":"Dracula Theme","version":"1.0.0","main":"extension.js","categories":["Themes"],"contributes":{"commands":[{"command":"noder-theme-dracula.apply","title":"Apply Dracula Theme","category":"Theme"}]}}

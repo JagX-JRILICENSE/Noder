@@ -1,9 +1,1 @@
-exports.activate = function (api) {
-  api.registerCommand('noder-theme-midnight.apply', function () {
-    if (typeof window !== 'undefined' && window.__noderApplyTheme) {
-      window.__noderApplyTheme('midnight')
-    }
-    api.showMessage('Theme: Midnight Ocean applied')
-  })
-}
-exports.deactivate = function () {}
+exports.activate=function(api){api.registerCommand('noder-theme-midnight.apply',function(){if(typeof window!=='undefined'&&window.__noderApplyTheme)window.__noderApplyTheme('midnight');api.showMessage('Theme: Midnight Ocean applied')})};exports.deactivate=function(){}

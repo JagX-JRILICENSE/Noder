@@ -1,12 +1,1 @@
-{
-  "name": "noder-theme-midnight",
-  "displayName": "Midnight Ocean Theme",
-  "version": "1.0.0",
-  "main": "extension.js",
-  "categories": ["Themes"],
-  "contributes": {
-    "commands": [
-      { "command": "noder-theme-midnight.apply", "title": "Apply Midnight Ocean Theme", "category": "Theme" }
-    ]
-  }
-}
+{"name":"noder-theme-midnight","displayName":"Midnight Ocean","version":"1.0.0","main":"extension.js","categories":["Themes"],"contributes":{"commands":[{"command":"noder-theme-midnight.apply","title":"Apply Midnight Ocean","category":"Theme"}]}}
