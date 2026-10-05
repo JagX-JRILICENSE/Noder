@@ -4,7 +4,7 @@ import {
   FilePlus, FolderPlus, RefreshCw,
 } from 'lucide-react'
 import type { FileEntry } from '../types'
-import { saveWorkspace } from '../lib/workspaceRestore'
+import { saveWorkspace, restoreLastWorkspace } from '../lib/workspaceRestore'
 
 interface Props {
   workspace: string | null
@@ -104,6 +104,22 @@ function TreeNode({
 export default function FileExplorer({ workspace, onOpenFile, activePath, onWorkspaceFolder, refreshKey }: Props) {
   const [rootEntries, setRootEntries] = useState<FileEntry[]>([])
   const [tick, setTick] = useState(0)
+  const [restoring, setRestoring] = useState(true)
+
+  // Auto-restore last project so user can come back and see their folder
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      if (workspace) { setRestoring(false); return }
+      try {
+        const last = await restoreLastWorkspace()
+        if (!cancelled && last) onWorkspaceFolder?.(last)
+      } finally {
+        if (!cancelled) setRestoring(false)
+      }
+    })()
+    return () => { cancelled = true }
+  }, [])
 
   const reload = useCallback(() => {
     if (workspace && window.electronAPI) {
@@ -134,20 +150,18 @@ export default function FileExplorer({ workspace, onOpenFile, activePath, onWork
 
   const createFolder = async () => {
     if (!workspace || !(window.electronAPI as any)?.mkdir) return
-    const name = prompt('New folder name (e.g. src, assets/images):')
+    const name = prompt('New folder name:')
     if (!name?.trim()) return
     const rel = name.trim().replace(/^[/\\]+/, '')
     const full = `${workspace.replace(/\\/g, '/')}/${rel}`
     const ok = await (window.electronAPI as any).mkdir(full)
     if (ok) setTick((t) => t + 1)
-    else alert('Could not create folder')
   }
 
-  const onDelete = async (path: string, _isDir: boolean) => {
+  const onDelete = async (path: string) => {
     if (!(window.electronAPI as any)?.deletePath) return
     const ok = await (window.electronAPI as any).deletePath(path)
     if (ok) setTick((t) => t + 1)
-    else alert('Delete failed')
   }
 
   const openFolder = async () => {
@@ -178,14 +192,14 @@ export default function FileExplorer({ workspace, onOpenFile, activePath, onWork
         </div>
       )}
 
-      {!workspace ? (
+      {restoring && !workspace ? (
+        <div className="empty-state"><p>Restoring last project…</p></div>
+      ) : !workspace ? (
         <div className="empty-state">
           <p>No folder opened</p>
-          <button className="btn-primary" onClick={openFolder}>
-            Open Folder
-          </button>
-          <p className="hint" style={{ marginTop: 12, opacity: 0.7, fontSize: 12 }}>
-            Your last project is restored automatically when you reopen Noder.
+          <button className="btn-primary" onClick={openFolder}>Open Folder</button>
+          <p style={{ marginTop: 12, opacity: 0.7, fontSize: 12 }}>
+            Last project is restored automatically next time you open Noder.
           </p>
         </div>
       ) : (
