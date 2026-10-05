@@ -7,19 +7,8 @@ import { Plus, X } from 'lucide-react'
 import type { TerminalSession } from '../types'
 import 'xterm/css/xterm.css'
 
-interface Props {
-  visible: boolean
-  cwd?: string | null
-}
-
-interface SessionRuntime {
-  id: string
-  term: XTerm
-  fit: FitAddon
-  container: HTMLDivElement
-  mode: 'pty' | 'proc' | 'fallback'
-}
-
+interface Props { visible: boolean; cwd?: string | null }
+interface SessionRuntime { id: string; term: XTerm; fit: FitAddon; container: HTMLDivElement; mode: 'pty' | 'proc' | 'fallback' }
 export interface TerminalPanelHandle {
   runCommand: (cmd: string) => Promise<string>
   ensureVisibleSession: () => Promise<string | null>
@@ -33,7 +22,6 @@ const TerminalPanel = forwardRef<TerminalPanelHandle, Props>(function TerminalPa
   const dataHandlerAttached = useRef(false)
   const activeIdRef = useRef<string | null>(null)
   const sessionsRef = useRef<TerminalSession[]>([])
-
   useEffect(() => { activeIdRef.current = activeId }, [activeId])
   useEffect(() => { sessionsRef.current = sessions }, [sessions])
 
@@ -41,77 +29,38 @@ const TerminalPanel = forwardRef<TerminalPanelHandle, Props>(function TerminalPa
     const id = uuidv4()
     const title = `Terminal ${sessionsRef.current.length + 1}`
     const container = document.createElement('div')
-    container.style.height = '100%'
-    container.style.width = '100%'
-    container.style.display = 'none'
-
+    container.style.height = '100%'; container.style.width = '100%'; container.style.display = 'none'
     const term = new XTerm({
-      theme: {
-        background: '#1e1e1e',
-        foreground: '#cccccc',
-        cursor: '#ffffff',
-        selectionBackground: '#264f78',
-      },
-      fontFamily: 'Consolas, "Courier New", monospace',
-      fontSize: 13,
-      cursorBlink: true,
-      convertEol: true,
-      allowProposedApi: true,
-      scrollback: 8000,
+      theme: { background: '#1e1e1e', foreground: '#cccccc', cursor: '#ffffff', selectionBackground: '#264f78' },
+      fontFamily: 'Consolas, "Courier New", monospace', fontSize: 13, cursorBlink: true, convertEol: true, allowProposedApi: true, scrollback: 8000,
     })
-
     const fit = new FitAddon()
-    term.loadAddon(fit)
-    term.loadAddon(new WebLinksAddon())
-    term.open(container)
-
+    term.loadAddon(fit); term.loadAddon(new WebLinksAddon()); term.open(container)
     let mode: 'pty' | 'proc' | 'fallback' = 'fallback'
-
     if (window.electronAPI?.ptySpawn) {
       const result = await window.electronAPI.ptySpawn(id, cwd || undefined)
       if (result?.ok) {
         mode = (result.mode as 'pty' | 'proc') || 'proc'
-        if (mode === 'pty') {
-          term.writeln('\x1b[1;32m✓ Full system shell (node-pty)\x1b[0m\r\n')
-        } else {
-          term.writeln('\x1b[1;32m✓ System shell connected\x1b[0m\r\n')
-        }
+        term.writeln(mode === 'pty' ? '\x1b[1;32m✓ Full system shell (node-pty)\x1b[0m\r\n' : '\x1b[1;32m✓ System shell connected\x1b[0m\r\n')
         term.onData((data) => window.electronAPI?.ptyWrite(id, data))
       }
     }
-
     if (mode === 'fallback') {
       term.writeln('\x1b[1;31mShell unavailable — agent will use shellExec fallback.\x1b[0m\r\n')
       term.write('$ ')
       let line = ''
       term.onData((data) => {
-        if (data === '\r') {
-          term.write('\r\n')
-          line = ''
-          term.write('$ ')
-        } else if (data === '\u007f') {
-          if (line.length) {
-            line = line.slice(0, -1)
-            term.write('\b \b')
-          }
-        } else if (data >= ' ') {
-          line += data
-          term.write(data)
-        }
+        if (data === '\r') { term.write('\r\n'); line = ''; term.write('$ ') }
+        else if (data === '\u007f') { if (line.length) { line = line.slice(0, -1); term.write('\b \b') } }
+        else if (data >= ' ') { line += data; term.write(data) }
       })
     }
-
     runtimes.current.set(id, { id, term, fit, container, mode })
     if (hostRef.current) hostRef.current.appendChild(container)
-    setSessions((prev) => [...prev, { id, title }])
-    setActiveId(id)
+    setSessions((prev) => [...prev, { id, title }]); setActiveId(id)
     setTimeout(() => {
-      container.style.display = 'block'
-      fit.fit()
-      if (mode === 'pty' || mode === 'proc') {
-        const dims = fit.proposeDimensions()
-        if (dims) window.electronAPI?.ptyResize(id, dims.cols, dims.rows)
-      }
+      container.style.display = 'block'; fit.fit()
+      if (mode === 'pty' || mode === 'proc') { const dims = fit.proposeDimensions(); if (dims) window.electronAPI?.ptyResize(id, dims.cols, dims.rows) }
       term.focus()
     }, 30)
     return id
@@ -120,77 +69,33 @@ const TerminalPanel = forwardRef<TerminalPanelHandle, Props>(function TerminalPa
   useEffect(() => {
     if (dataHandlerAttached.current || !window.electronAPI) return
     dataHandlerAttached.current = true
-    window.electronAPI.onPtyData(({ id, data }) => {
-      const rt = runtimes.current.get(id)
-      if (rt) rt.term.write(data)
-    })
-    window.electronAPI.onPtyExit(({ id }) => {
-      const rt = runtimes.current.get(id)
-      if (rt) rt.term.writeln('\r\n\x1b[31m[Process exited]\x1b[0m')
-    })
+    window.electronAPI.onPtyData(({ id, data }) => { const rt = runtimes.current.get(id); if (rt) rt.term.write(data) })
+    window.electronAPI.onPtyExit(({ id }) => { const rt = runtimes.current.get(id); if (rt) rt.term.writeln('\r\n\x1b[31m[Process exited]\x1b[0m') })
   }, [])
 
-  useEffect(() => {
-    if (visible && sessions.length === 0) createSession()
-  }, [visible]) // eslint-disable-line
-
+  useEffect(() => { if (visible && sessions.length === 0) createSession() }, [visible])
   useEffect(() => {
     runtimes.current.forEach((rt, id) => {
       rt.container.style.display = id === activeId ? 'block' : 'none'
-      if (id === activeId) {
-        setTimeout(() => {
-          rt.fit.fit()
-          if (rt.mode === 'pty' || rt.mode === 'proc') {
-            const dims = rt.fit.proposeDimensions()
-            if (dims) window.electronAPI?.ptyResize(id, dims.cols, dims.rows)
-          }
-          rt.term.focus()
-        }, 20)
-      }
+      if (id === activeId) setTimeout(() => { rt.fit.fit(); if (rt.mode === 'pty' || rt.mode === 'proc') { const dims = rt.fit.proposeDimensions(); if (dims) window.electronAPI?.ptyResize(id, dims.cols, dims.rows) }; rt.term.focus() }, 20)
     })
   }, [activeId])
 
-  useEffect(() => {
-    if (!visible || !activeId) return
-    const rt = runtimes.current.get(activeId)
-    if (!rt) return
-    setTimeout(() => {
-      rt.fit.fit()
-      if (rt.mode === 'pty' || rt.mode === 'proc') {
-        const dims = rt.fit.proposeDimensions()
-        if (dims) window.electronAPI?.ptyResize(activeId, dims.cols, dims.rows)
-      }
-    }, 50)
-  }, [visible, activeId])
-
   const closeSession = (id: string) => {
     const rt = runtimes.current.get(id)
-    if (rt) {
-      window.electronAPI?.ptyKill(id)
-      rt.term.dispose()
-      rt.container.remove()
-      runtimes.current.delete(id)
-    }
-    setSessions((prev) => {
-      const next = prev.filter((s) => s.id !== id)
-      if (activeId === id) setActiveId(next.length ? next[next.length - 1].id : null)
-      return next
-    })
+    if (rt) { window.electronAPI?.ptyKill(id); rt.term.dispose(); rt.container.remove(); runtimes.current.delete(id) }
+    setSessions((prev) => { const next = prev.filter((s) => s.id !== id); if (activeId === id) setActiveId(next.length ? next[next.length - 1].id : null); return next })
   }
 
   useImperativeHandle(ref, () => ({
     async ensureVisibleSession() {
       let id = activeIdRef.current
-      if (!id || !runtimes.current.has(id)) {
-        id = await createSession()
-      }
+      if (!id || !runtimes.current.has(id)) id = await createSession()
       return id
     },
     async runCommand(cmd: string) {
       let id = activeIdRef.current
-      if (!id || !runtimes.current.has(id)) {
-        id = await createSession()
-      }
+      if (!id || !runtimes.current.has(id)) id = await createSession()
       const rt = runtimes.current.get(id!)
       if (!rt) {
         const res = await (window.electronAPI as any)?.shellExec?.(cmd, cwd || undefined)
@@ -200,10 +105,7 @@ const TerminalPanel = forwardRef<TerminalPanelHandle, Props>(function TerminalPa
       if ((rt.mode === 'pty' || rt.mode === 'proc') && window.electronAPI?.ptyWrite) {
         window.electronAPI.ptyWrite(id!, cmd + '\r')
         const res = await (window.electronAPI as any)?.shellExec?.(cmd, cwd || undefined)
-        if (res) {
-          const out = `${res.stdout || ''}${res.stderr ? '\n' + res.stderr : ''}`
-          return out.slice(0, 12000) || '(no output)'
-        }
+        if (res) return `${res.stdout || ''}${res.stderr ? '\n' + res.stderr : ''}`.slice(0, 12000) || '(no output)'
         return `Sent to terminal: ${cmd}`
       }
       const res = await (window.electronAPI as any)?.shellExec?.(cmd, cwd || undefined)
@@ -218,21 +120,13 @@ const TerminalPanel = forwardRef<TerminalPanelHandle, Props>(function TerminalPa
       <div className="terminal-tabs">
         <div className="terminal-tab-list">
           {sessions.map((s) => (
-            <div
-              key={s.id}
-              className={`terminal-tab ${s.id === activeId ? 'active' : ''}`}
-              onClick={() => setActiveId(s.id)}
-            >
+            <div key={s.id} className={`terminal-tab ${s.id === activeId ? 'active' : ''}`} onClick={() => setActiveId(s.id)}>
               <span>{s.title}</span>
-              <button type="button" onClick={(e) => { e.stopPropagation(); closeSession(s.id) }} title="Close">
-                <X size={12} />
-              </button>
+              <button type="button" onClick={(e) => { e.stopPropagation(); closeSession(s.id) }}><X size={12} /></button>
             </div>
           ))}
         </div>
-        <button type="button" className="terminal-add" onClick={() => createSession()} title="New terminal">
-          <Plus size={14} />
-        </button>
+        <button type="button" className="terminal-add" onClick={() => createSession()}><Plus size={14} /></button>
       </div>
       <div className="terminal-host" ref={hostRef} />
     </div>
