@@ -59,7 +59,6 @@ export default function CommandPalette({ open, onClose, onExecute }: Props) {
           (c.category || '').toLowerCase().includes(q)
       )
     } else if (history.length) {
-      // Recent first when no query
       const map = new Map(commands.map((c) => [c.id, c]))
       const recent = history.map((id) => map.get(id)).filter(Boolean) as PaletteCommand[]
       const rest = commands.filter((c) => !history.includes(c.id))

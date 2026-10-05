@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import {
   Folder, FolderOpen, FileCode, ChevronRight, ChevronDown,
-  FilePlus, FolderPlus, RefreshCw, Trash2,
+  FilePlus, FolderPlus, RefreshCw,
 } from 'lucide-react'
 import type { FileEntry } from '../types'
 
@@ -14,12 +14,7 @@ interface Props {
 }
 
 function TreeNode({
-  entry,
-  depth,
-  onOpenFile,
-  activePath,
-  onRefresh,
-  onDelete,
+  entry, depth, onOpenFile, activePath, onDelete,
 }: {
   entry: FileEntry
   depth: number
@@ -78,7 +73,7 @@ function TreeNode({
                 depth={depth + 1}
                 onOpenFile={onOpenFile}
                 activePath={activePath}
-                onRefresh={onRefresh}
+                onRefresh={() => {}}
                 onDelete={onDelete}
               />
             ))}
@@ -147,7 +142,7 @@ export default function FileExplorer({ workspace, onOpenFile, activePath, onWork
     else alert('Could not create folder')
   }
 
-  const onDelete = async (path: string, isDir: boolean) => {
+  const onDelete = async (path: string, _isDir: boolean) => {
     if (!(window.electronAPI as any)?.deletePath) return
     const ok = await (window.electronAPI as any).deletePath(path)
     if (ok) setTick((t) => t + 1)
