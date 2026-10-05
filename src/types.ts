@@ -1,63 +1,20 @@
-export interface FileEntry {
-  name: string
-  isDirectory: boolean
-  path: string
-}
-
-export interface OpenTab {
-  id: string
-  path: string
-  name: string
-  content: string
-  language: string
-  isDirty: boolean
-}
-
+export interface FileEntry { name: string; isDirectory: boolean; path: string }
+export interface OpenTab { id: string; path: string; name: string; content: string; language: string; isDirty: boolean }
 export interface NoderExtension {
-  id: string
-  name: string
-  version: string
-  description?: string
-  contributes?: {
-    commands?: { command: string; title: string; category?: string }[]
-    statusBar?: { id: string; text: string; command?: string }[]
-  }
+  id: string; name: string; version: string; description?: string
+  contributes?: { commands?: { command: string; title: string; category?: string }[]; statusBar?: { id: string; text: string; command?: string }[] }
 }
-
 export interface GitHubRepo {
-  id: number
-  name: string
-  full_name: string
-  private: boolean
-  html_url: string
-  description: string | null
-  default_branch: string
-  language: string | null
-  stargazers_count: number
-  updated_at: string
-  clone_url?: string
+  id: number; name: string; full_name: string; private: boolean; html_url: string
+  description: string | null; default_branch: string; language: string | null
+  stargazers_count: number; updated_at: string; clone_url?: string
 }
-
 export interface GitStatus {
-  current: string | null
-  tracking: string | null
-  ahead: number
-  behind: number
-  files: { path: string; index: string; working_dir: string }[]
-  isClean: boolean
+  current: string | null; tracking: string | null; ahead: number; behind: number
+  files: { path: string; index: string; working_dir: string }[]; isClean: boolean
 }
-
-export interface BlameLine {
-  line: number
-  hash: string
-  author: string
-  summary: string
-}
-
-export interface TerminalSession {
-  id: string
-  title: string
-}
+export interface BlameLine { line: number; hash: string; author: string; summary: string }
+export interface TerminalSession { id: string; title: string }
 
 declare global {
   interface Window {
@@ -75,7 +32,7 @@ declare global {
       getVersion: () => Promise<string>
       listExtensions: () => Promise<NoderExtension[]>
       listCommands: () => Promise<{ id: string; title: string; category?: string; source: string }[]>
-      executeCommand: (commandId: string, ...args: any[]) => Promise<{ ok: boolean; result?: any; error?: string; builtin?: boolean; commandId?: string }>
+      executeCommand: (commandId: string, ...args: any[]) => Promise<{ ok: boolean; result?: any; error?: string }>
       getStatusBarItems: () => Promise<{ id: string; text: string; command?: string; extensionId: string }[]>
       reloadExtensions: () => Promise<{ ok: boolean; count: number }>
       onExtensionMessage: (cb: (payload: { extensionId: string; message: string }) => void) => void
@@ -106,5 +63,4 @@ declare global {
     }
   }
 }
-
 export {}
