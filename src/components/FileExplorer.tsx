@@ -4,6 +4,7 @@ import {
   FilePlus, FolderPlus, RefreshCw,
 } from 'lucide-react'
 import type { FileEntry } from '../types'
+import { saveWorkspace } from '../lib/workspaceRestore'
 
 interface Props {
   workspace: string | null
@@ -149,6 +150,15 @@ export default function FileExplorer({ workspace, onOpenFile, activePath, onWork
     else alert('Delete failed')
   }
 
+  const openFolder = async () => {
+    if (!window.electronAPI) return
+    const folder = await window.electronAPI.openFolder()
+    if (folder) {
+      await saveWorkspace(folder)
+      onWorkspaceFolder?.(folder)
+    }
+  }
+
   return (
     <div className="file-explorer">
       <div className="sidebar-header">
@@ -171,17 +181,12 @@ export default function FileExplorer({ workspace, onOpenFile, activePath, onWork
       {!workspace ? (
         <div className="empty-state">
           <p>No folder opened</p>
-          <button
-            className="btn-primary"
-            onClick={async () => {
-              if (window.electronAPI) {
-                const folder = await window.electronAPI.openFolder()
-                if (folder) onWorkspaceFolder?.(folder)
-              }
-            }}
-          >
+          <button className="btn-primary" onClick={openFolder}>
             Open Folder
           </button>
+          <p className="hint" style={{ marginTop: 12, opacity: 0.7, fontSize: 12 }}>
+            Your last project is restored automatically when you reopen Noder.
+          </p>
         </div>
       ) : (
         <div className="tree">
