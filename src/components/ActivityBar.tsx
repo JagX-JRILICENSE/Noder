@@ -1,15 +1,6 @@
-import {
-  Files, Search, GitBranch, Puzzle, Settings, Sparkles, Github, Bot,
-} from 'lucide-react'
+import { Files, Search, GitBranch, Puzzle, Settings, Sparkles, Github } from 'lucide-react'
 
-export type ActivityId =
-  | 'explorer'
-  | 'search'
-  | 'git'
-  | 'extensions'
-  | 'github'
-  | 'ai'
-  | 'settings'
+export type ActivityId = 'explorer' | 'search' | 'git' | 'extensions' | 'github' | 'ai' | 'settings'
 
 interface Props {
   active: ActivityId
@@ -30,22 +21,13 @@ export default function ActivityBar({ active, onSelect }: Props) {
     <div className="activity-bar">
       <div className="activity-top">
         {items.map(({ id, icon: Icon, title }) => (
-          <button
-            key={id}
-            className={`activity-btn ${active === id ? 'active' : ''}`}
-            title={title}
-            onClick={() => onSelect(id)}
-          >
+          <button key={id} className={`activity-btn ${active === id ? 'active' : ''}`} title={title} onClick={() => onSelect(id)}>
             <Icon size={22} />
           </button>
         ))}
       </div>
       <div className="activity-bottom">
-        <button
-          className={`activity-btn ${active === 'settings' ? 'active' : ''}`}
-          title="Settings"
-          onClick={() => onSelect('settings')}
-        >
+        <button className={`activity-btn ${active === 'settings' ? 'active' : ''}`} title="Settings" onClick={() => onSelect('settings')}>
           <Settings size={22} />
         </button>
       </div>

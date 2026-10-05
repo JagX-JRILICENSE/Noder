@@ -1,144 +1,66 @@
-import { useState, useEffect } from 'react'
-import { Package, Star, Download } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { Download, Puzzle, Star } from 'lucide-react'
 
-interface MarketExt {
+interface ExtItem {
   id: string
   name: string
   version: string
   publisher: string
   description: string
-  categories: string[]
-  install: string
+  categories?: string[]
+  install?: string
   featured?: boolean
 }
 
-interface Props {
-  visible: boolean
-  onClose: () => void
-}
-
-export default function Marketplace({ visible, onClose }: Props) {
-  const [extensions, setExtensions] = useState<MarketExt[]>([])
-  const [installed, setInstalled] = useState<string[]>([])
-  const [query, setQuery] = useState('')
-  const [loading, setLoading] = useState(false)
-  const [installing, setInstalling] = useState<string | null>(null)
-  const [msg, setMsg] = useState<string | null>(null)
-
-  const refresh = async () => {
-    setLoading(true)
-    try {
-      const [catalog, local] = await Promise.all([
-        window.electronAPI?.marketplaceList?.() ?? { extensions: [] },
-        window.electronAPI?.listExtensions?.() ?? [],
-      ])
-      setExtensions(catalog?.extensions || [])
-      setInstalled((local || []).map((e: any) => e.id))
-    } finally {
-      setLoading(false)
-    }
-  }
+export default function Marketplace() {
+  const [items, setItems] = useState<ExtItem[]>([])
+  const [q, setQ] = useState('')
+  const [busy, setBusy] = useState<string | null>(null)
 
   useEffect(() => {
-    if (visible) refresh()
-  }, [visible])
+    ;(async () => {
+      try {
+        const res = await window.electronAPI?.marketplaceList?.()
+        if (res?.extensions) setItems(res.extensions)
+      } catch {
+        setItems([])
+      }
+    })()
+  }, [])
 
-  if (!visible) return null
-
-  const filtered = extensions.filter((e) => {
-    const q = query.toLowerCase()
-    if (!q) return true
-    return (
-      e.name.toLowerCase().includes(q) ||
-      e.description.toLowerCase().includes(q) ||
-      e.publisher.toLowerCase().includes(q) ||
-      e.categories.some((c) => c.toLowerCase().includes(q))
-    )
-  })
+  const filtered = items.filter((e) =>
+    !q.trim() || e.name.toLowerCase().includes(q.toLowerCase()) || e.description?.toLowerCase().includes(q.toLowerCase())
+  )
 
   const install = async (id: string) => {
-    setInstalling(id)
-    setMsg(null)
-    const res = await window.electronAPI?.marketplaceInstall?.(id)
-    setInstalling(null)
-    if (res?.ok) {
-      setMsg(`Installed ${id}`)
-      await refresh()
-      await window.electronAPI?.reloadExtensions?.()
-      await refresh()
-    } else {
-      setMsg(res?.error || 'Install failed')
+    setBusy(id)
+    try {
+      const r = await window.electronAPI?.marketplaceInstall?.(id)
+      if (r?.ok) alert(`Installed ${id}`)
+      else alert(r?.error || 'Install failed')
+    } finally {
+      setBusy(null)
     }
   }
 
   return (
     <div className="marketplace-panel">
-      <div className="marketplace-header">
-        <div className="marketplace-title">
-          <Package size={16} />
-          <span>Extensions</span>
-        </div>
-        <button className="icon-btn" onClick={onClose}>✕</button>
-      </div>
-
-      <div className="marketplace-search">
-        <input
-          placeholder="Search extensions…"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-        />
-      </div>
-
-      {msg && <div className="marketplace-msg">{msg}</div>}
-
+      <div className="sidebar-header"><span><Puzzle size={14} style={{ verticalAlign: -2, marginRight: 6 }} />EXTENSIONS</span></div>
+      <input className="marketplace-search" placeholder="Search extensions..." value={q} onChange={(e) => setQ(e.target.value)} />
       <div className="marketplace-list">
-        {loading && <div className="git-empty">Loading catalog…</div>}
-        {!loading && filtered.length === 0 && (
-          <div className="git-empty">No extensions found.</div>
-        )}
-        {filtered.map((ext) => {
-          const isInstalled = installed.includes(ext.id) || ext.install === 'bundled'
-          return (
-            <div key={ext.id} className="marketplace-item">
-              <div className="marketplace-item-icon">
-                <Package size={22} />
-              </div>
-              <div className="marketplace-item-body">
-                <div className="marketplace-item-name">
-                  {ext.name}
-                  {ext.featured && <Star size={12} className="featured-star" />}
-                </div>
-                <div className="marketplace-item-meta">
-                  {ext.publisher} · v{ext.version}
-                  {ext.categories.map((c) => (
-                    <span key={c} className="badge">{c}</span>
-                  ))}
-                </div>
-                <p>{ext.description}</p>
-              </div>
-              <div className="marketplace-item-action">
-                {isInstalled ? (
-                  <span className="installed-label">Installed</span>
-                ) : ext.install === 'coming-soon' ? (
-                  <span className="coming-soon">Coming soon</span>
-                ) : (
-                  <button
-                    className="btn-small"
-                    disabled={installing === ext.id}
-                    onClick={() => install(ext.id)}
-                  >
-                    <Download size={12} />
-                    {installing === ext.id ? 'Installing…' : 'Install'}
-                  </button>
-                )}
-              </div>
+        {filtered.map((e) => (
+          <div key={e.id} className="marketplace-card">
+            <div className="marketplace-card-title">
+              {e.name} {e.featured && <Star size={12} className="featured-star" />}
             </div>
-          )
-        })}
-      </div>
-
-      <div className="marketplace-footer">
-        Installed into user extensions folder. Restart or reload to activate handlers.
+            <div className="marketplace-card-meta">{e.publisher} · v{e.version}</div>
+            <p className="marketplace-card-desc">{e.description}</p>
+            <button className="btn-secondary" disabled={busy === e.id || e.install === 'coming-soon'} onClick={() => install(e.id)}>
+              <Download size={14} /> {busy === e.id ? 'Installing…' : e.install === 'bundled' ? 'Bundled' : 'Install'}
+            </button>
+          </div>
+        ))}
+        {!filtered.length && <div className="empty-state">No extensions found</div>}
       </div>
     </div>
   )
