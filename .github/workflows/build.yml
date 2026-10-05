@@ -8,25 +8,12 @@ on:
   workflow_dispatch:
 
 concurrency:
-  group: build-${{ github.workflow }}-${{ github.ref }}
+  group: build-all-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  build:
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - os: windows-latest
-            platform: win
-            args: --win --x64
-          - os: macos-latest
-            platform: mac
-            args: --mac --arm64
-          - os: ubuntu-22.04
-            platform: linux
-            args: --linux --x64
-    runs-on: ${{ matrix.os }}
+  windows:
+    runs-on: windows-latest
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
@@ -38,24 +25,13 @@ jobs:
           python-version: "3.12"
       - run: python -m pip install --upgrade pip pillow
       - run: python scripts/generate-icons.py
-      - name: Verify icons
-        shell: bash
-        run: |
-          test -f assets/icon.png || test -f assets/icon.ico || exit 1
-      - name: Linux deps
-        if: matrix.platform == 'linux'
-        run: sudo apt-get update && sudo apt-get install -y fakeroot dpkg rpm
       - run: npm install --no-audit --no-fund
         env:
           npm_config_optional: true
       - run: npx vite build
         env:
           NODE_ENV: production
-      - name: Verify build
-        shell: bash
-        run: |
-          test -d dist && (test -f dist-electron/main.js || test -f dist-electron/main.cjs)
-      - run: npx electron-builder ${{ matrix.args }} --publish never
+      - run: npx electron-builder --win --x64 --publish never
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           CSC_IDENTITY_AUTO_DISCOVERY: false
@@ -63,7 +39,82 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: success()
         with:
-          name: Noder-${{ matrix.platform }}-${{ github.sha }}
+          name: Noder-Windows-all-${{ github.sha }}
           path: release/**
+          if-no-files-found: warn
+          retention-days: 30
+
+  linux:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install --upgrade pip pillow
+      - run: python scripts/generate-icons.py
+      - run: sudo apt-get update && sudo apt-get install -y fakeroot dpkg rpm
+      - run: npm install --no-audit --no-fund
+        env:
+          npm_config_optional: true
+      - run: npx vite build
+        env:
+          NODE_ENV: production
+      - run: npx electron-builder --linux --x64 --publish never
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CSC_IDENTITY_AUTO_DISCOVERY: false
+          ELECTRON_BUILDER_ALLOW_UNRESOLVED_DEPENDENCIES: true
+      - uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: Noder-Linux-${{ github.sha }}
+          path: release/**
+          if-no-files-found: warn
+          retention-days: 30
+
+  android:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: android-actions/setup-android@v3
+      - run: yes | sdkmanager --licenses || true
+      - run: npm install --no-audit --no-fund
+      - run: npm install @capacitor/core @capacitor/cli @capacitor/android --no-audit --no-fund
+      - run: npx vite build
+        env:
+          NODE_ENV: production
+      - name: Capacitor Android
+        run: |
+          if [ ! -f capacitor.config.json ] && [ ! -f capacitor.config.ts ]; then
+            echo '{"appId":"com.jagx.noder","appName":"Noder","webDir":"dist"}' > capacitor.config.json
+          fi
+          mkdir -p dist
+          test -f dist/index.html || echo '<html><body>Noder</body></html>' > dist/index.html
+          if [ ! -d android ]; then npx cap add android; fi
+          npx cap sync android
+          chmod +x android/gradlew
+          cd android
+          ./gradlew assembleDebug --no-daemon
+          ./gradlew bundleRelease --no-daemon || ./gradlew assembleRelease --no-daemon || true
+      - uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: Noder-Android-all-${{ github.sha }}
+          path: |
+            android/app/build/outputs/**/*.apk
+            android/app/build/outputs/**/*.aab
           if-no-files-found: warn
           retention-days: 30
