@@ -14,7 +14,7 @@ concurrency:
 jobs:
   build-android:
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 75
     steps:
       - uses: actions/checkout@v4
 
@@ -30,83 +30,61 @@ jobs:
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
 
-      - name: Accept Android licenses
-        run: |
-          yes | sdkmanager --licenses || true
-          sdkmanager "platform-tools" "platforms;android-34" "build-tools;34.0.0" || true
+      - name: Accept licenses
+        run: yes | sdkmanager --licenses || true
 
-      - name: npm install (app)
+      - name: Install npm deps
         run: npm install --no-audit --no-fund
 
       - name: Install Capacitor
-        run: |
-          npm install @capacitor/core @capacitor/cli @capacitor/android @capacitor/filesystem @capacitor/preferences --no-audit --no-fund
+        run: npm install @capacitor/core @capacitor/cli @capacitor/android @capacitor/filesystem @capacitor/preferences --no-audit --no-fund
 
-      - name: Build web (Vite)
+      - name: Vite web build
         run: npx vite build
         env:
           NODE_ENV: production
 
-      - name: Ensure capacitor.config
+      - name: Capacitor config + dist fallback
         run: |
-          if [ ! -f capacitor.config.ts ] && [ ! -f capacitor.config.json ]; then
-            cat > capacitor.config.json << 'EOF'
-          {
-            "appId": "com.jagx.noder",
-            "appName": "Noder",
-            "webDir": "dist",
-            "server": { "androidScheme": "https" },
-            "android": { "allowMixedContent": true }
-          }
-          EOF
+          if [ ! -f capacitor.config.json ] && [ ! -f capacitor.config.ts ]; then
+            printf '%s\n' '{"appId":"com.jagx.noder","appName":"Noder","webDir":"dist","server":{"androidScheme":"https"},"android":{"allowMixedContent":true}}' > capacitor.config.json
           fi
-          test -d dist || mkdir -p dist
-          test -f dist/index.html || echo '<!DOCTYPE html><html><body><h1>Noder</h1></body></html>' > dist/index.html
+          mkdir -p dist
+          if [ ! -f dist/index.html ]; then
+            printf '%s\n' '<!DOCTYPE html><html><body><h1>Noder</h1></body></html>' > dist/index.html
+          fi
 
-      - name: Add Android platform (if missing)
+      - name: Add and sync Android
         run: |
           if [ ! -d android ]; then
             npx cap add android
           fi
           npx cap sync android
+          chmod +x android/gradlew
 
-      - name: Make gradlew executable
-        run: |
-          chmod +x android/gradlew || true
-          ls -la android/
-
-      - name: Build Debug APK
+      - name: Assemble Debug APK
         working-directory: android
-        run: |
-          ./gradlew assembleDebug --no-daemon --stacktrace
-        env:
-          ANDROID_HOME: ${{ env.ANDROID_HOME }}
+        run: ./gradlew assembleDebug --no-daemon --stacktrace
 
-      - name: Build Release APK (unsigned)
+      - name: Bundle Release AAB
         working-directory: android
-        run: |
-          ./gradlew assembleRelease --no-daemon --stacktrace || true
+        run: ./gradlew bundleRelease --no-daemon --stacktrace
+        continue-on-error: true
 
-      - name: Build Release AAB (unsigned)
+      - name: Assemble Release APK
         working-directory: android
-        run: |
-          ./gradlew bundleRelease --no-daemon --stacktrace || true
+        run: ./gradlew assembleRelease --no-daemon --stacktrace
+        continue-on-error: true
 
-      - name: Collect artifacts
-        shell: bash
+      - name: Collect outputs
         run: |
           mkdir -p android-out
-          find android -name "*.apk" -type f -exec cp -v {} android-out/ \; || true
-          find android -name "*.aab" -type f -exec cp -v {} android-out/ \; || true
-          ls -la android-out/ || true
+          find android/app/build/outputs -type f \( -name '*.apk' -o -name '*.aab' \) -exec cp -v {} android-out/ \;
+          ls -lah android-out/
 
       - uses: actions/upload-artifact@v4
-        if: success()
         with:
           name: Noder-Android-${{ github.sha }}
-          path: |
-            android-out/**
-            android/app/build/outputs/**/*.apk
-            android/app/build/outputs/**/*.aab
+          path: android-out/**
           if-no-files-found: warn
           retention-days: 30
